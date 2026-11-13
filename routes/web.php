@@ -1,10 +1,6 @@
 <?php
 
+use App\Http\Controllers\VisitController;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'title' => 'PROvisit Portal',
-    ]);
-});
+Route::get('/', [VisitController::class, 'index'])->name('visits.index');
