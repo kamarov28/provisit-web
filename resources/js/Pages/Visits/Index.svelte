@@ -15,8 +15,13 @@
         Search,
         Filter,
         Briefcase,
-        ArrowRight
+        ArrowRight,
+        ArrowLeft,
+        Trash2,
+        AlertCircle,
+        FileText
     } from '@lucide/svelte';
+    import { router } from '@inertiajs/svelte';
 
     let {
         visits = [],
@@ -30,8 +35,222 @@
     let currentView = $state('calendar'); // 'calendar' | 'board' | 'table'
     let selectedVisit = $state(null);
     let isDrawerOpen = $state(false);
+    let isModalOpen = $state(false);
     let searchQuery = $state('');
     let selectedTeam = $state('ALL');
+
+    // ==========================================
+    // 3-STEP WIZARD FORM STATE (100% PERSIS GS)
+    // ==========================================
+    let currentStep = $state(1);
+    let isSubmitting = $state(false);
+    let formError = $state('');
+
+    // Step 1: Info Kunjungan
+    let formTitle = $state('');
+    let formDate = $state(new Date().toISOString().split('T')[0]);
+    let formStartTime = $state('10:00');
+    let formVisitType = $state('Offline Visit');
+    let formVisitPurpose = $state('Product Introduction / Presentation');
+    let formCustomerId = $state('');
+    let formCustomerPicId = $state('');
+    let formSalesUserId = $state('');
+    let formAgenda = $state('');
+    let formPrevisitNotes = $state('');
+    let formStatus = $state('Planned');
+
+    // Step 2: Principal Reviews
+    let formReviews = $state([
+        { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
+    ]);
+
+    // Step 3: Follow up & Hasil
+    let formPostvisitResult = $state('');
+    let formActionPlans = $state([
+        { task_description: '', owner_user_id: '', due_date: '', priority: 'Normal' }
+    ]);
+
+    const timeOptions = [];
+    for (let h = 0; h < 24; h++) {
+        for (let m of [0, 15, 30, 45]) {
+            timeOptions.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+        }
+    }
+
+    const visitPurposes = [
+        'Product Introduction / Presentation',
+        'Demo / Trial / Evaluation',
+        'Technical Support / Troubleshooting',
+        'Installation / Training',
+        'Follow-up / Relationship',
+        'Commercial / Negotiation'
+    ];
+
+    const exposureTypes = [
+        'Introduction', 'Demo', 'Evaluation', 'Troubleshooting', 'Follow-up', 'Commercial'
+    ];
+
+    const opportunityStatuses = [
+        'No Signal', 'Interested', 'Sample', 'Demo', 'Quotation', 'Negotiation', 'Won', 'Lost'
+    ];
+
+    let availablePics = $derived.by(() => {
+        if (!formCustomerId) return [];
+        const cust = customers.find(c => String(c.id) === String(formCustomerId));
+        return cust && cust.pics ? cust.pics : [];
+    });
+
+    function openNewVisitModal() {
+        currentStep = 1;
+        formError = '';
+        formTitle = '';
+        formDate = new Date().toISOString().split('T')[0];
+        formStartTime = '10:00';
+        formVisitType = 'Offline Visit';
+        formVisitPurpose = 'Product Introduction / Presentation';
+        formCustomerId = customers.length > 0 ? String(customers[0].id) : '';
+        formCustomerPicId = '';
+        formSalesUserId = salesUsers.length > 0 ? String(salesUsers[0].id) : '';
+        formAgenda = '';
+        formPrevisitNotes = '';
+        formStatus = 'Planned';
+        formReviews = [
+            { principal_id: principals.length > 0 ? String(principals[0].id) : '', principal_name: principals.length > 0 ? principals[0].name : '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
+        ];
+        formPostvisitResult = '';
+        formActionPlans = [
+            { task_description: '', owner_user_id: formSalesUserId, due_date: '', priority: 'Normal' }
+        ];
+
+        isModalOpen = true;
+    }
+
+    function closeModal() {
+        isModalOpen = false;
+    }
+
+    function setQuickDate(days) {
+        const d = new Date();
+        d.setDate(d.getDate() + days);
+        formDate = d.toISOString().split('T')[0];
+    }
+
+    function addReviewItem() {
+        formReviews = [
+            ...formReviews,
+            { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
+        ];
+    }
+
+    function removeReviewItem(index) {
+        if (formReviews.length > 1) {
+            formReviews = formReviews.filter((_, idx) => idx !== index);
+        }
+    }
+
+    function addActionPlanItem() {
+        formActionPlans = [
+            ...formActionPlans,
+            { task_description: '', owner_user_id: formSalesUserId, due_date: '', priority: 'Normal' }
+        ];
+    }
+
+    function removeActionPlanItem(index) {
+        if (formActionPlans.length > 1) {
+            formActionPlans = formActionPlans.filter((_, idx) => idx !== index);
+        }
+    }
+
+    function validateStep(step) {
+        formError = '';
+        if (step === 1) {
+            if (!formTitle.trim()) {
+                formError = 'Judul kunjungan (Visit Title) wajib diisi.';
+                return false;
+            }
+            if (!formCustomerId) {
+                formError = 'Pilih customer terlebih dahulu.';
+                return false;
+            }
+            if (!formDate || !formStartTime) {
+                formError = 'Tanggal dan jam mulai kunjungan wajib diisi.';
+                return false;
+            }
+        } else if (step === 2) {
+            if (formReviews.length === 0) {
+                formError = 'Minimal 1 Principal Review wajib diisi.';
+                return false;
+            }
+            for (let rev of formReviews) {
+                if (!rev.principal_name) {
+                    formError = 'Pastikan semua baris review telah memilih Principal.';
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    function nextStep() {
+        if (validateStep(currentStep)) {
+            if (currentStep < 3) currentStep++;
+        }
+    }
+
+    function prevStep() {
+        formError = '';
+        if (currentStep > 1) currentStep--;
+    }
+
+    function submitVisit() {
+        if (!validateStep(1) || !validateStep(2)) return;
+
+        if (formStatus === 'Completed') {
+            const validPlans = formActionPlans.filter(p => p.task_description.trim());
+            if (validPlans.length === 0) {
+                currentStep = 3;
+                formError = 'Aturan Perusahaan: Action Plan wajib diisi jika status kunjungan Completed.';
+                return;
+            }
+        }
+
+        isSubmitting = true;
+        formError = '';
+
+        const payload = {
+            title: formTitle,
+            visit_date: formDate,
+            start_time: formStartTime,
+            visit_type: formVisitType,
+            visit_purpose: formVisitPurpose,
+            customer_id: formCustomerId,
+            customer_pic_id: formCustomerPicId || null,
+            primary_sales_user_id: formSalesUserId || null,
+            agenda: formAgenda,
+            previsit_notes: formPrevisitNotes,
+            status: formStatus,
+            postvisit_result: formPostvisitResult,
+            principal_reviews: formReviews.map(r => ({
+                principal_id: r.principal_id || null,
+                principal_name: r.principal_name,
+                exposure_type: r.exposure_type,
+                opportunity_status: r.opportunity_status,
+                products: r.products || []
+            })),
+            action_plans: formActionPlans.filter(p => p.task_description.trim())
+        };
+
+        router.post('/visits', payload, {
+            onSuccess: () => {
+                isSubmitting = false;
+                isModalOpen = false;
+            },
+            onError: (err) => {
+                isSubmitting = false;
+                formError = Object.values(err)[0] || 'Gagal menyimpan kunjungan.';
+            }
+        });
+    }
 
     // Date navigation for Calendar
     let currentDate = $state(new Date());
@@ -218,7 +437,8 @@
             <!-- New Visit Button -->
             <button
                 type="button"
-                class="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors"
+                onclick={openNewVisitModal}
+                class="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
             >
                 <Plus class="w-3.5 h-3.5" />
                 <span>Catat Visit</span>
@@ -623,5 +843,450 @@
                 </button>
             </div>
         </aside>
+    {/if}
+
+    <!-- 3-STEP WIZARD MODAL (100% PERSIS GS APPS SCRIPT) -->
+    {#if isModalOpen}
+        <button
+            type="button"
+            class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-2xs transition-opacity w-full h-full cursor-default"
+            onclick={closeModal}
+            aria-label="Tutup form"
+        ></button>
+
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col pointer-events-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                <!-- Modal Header -->
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-900">Catat Kunjungan Baru</h3>
+                        <p class="text-xs text-slate-400">Ikuti 3 tahapan pengisian formulir kunjungan</p>
+                    </div>
+                    <button
+                        type="button"
+                        onclick={closeModal}
+                        class="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                    >
+                        <X class="w-4 h-4" />
+                    </button>
+                </div>
+
+                <!-- 3 Steps Tabs (Persis Tab Selection GS) -->
+                <div class="grid grid-cols-3 border-b border-slate-100 bg-slate-50/60 text-xs font-medium">
+                    <button
+                        type="button"
+                        onclick={() => currentStep = 1}
+                        class="py-3 px-4 border-b-2 flex items-center justify-center gap-2 transition-all {currentStep === 1 ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    >
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] {currentStep === 1 ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'}">1</span>
+                        <span>Info Kunjungan</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => { if (validateStep(1)) currentStep = 2; }}
+                        class="py-3 px-4 border-b-2 flex items-center justify-center gap-2 transition-all {currentStep === 2 ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    >
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] {currentStep === 2 ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'}">2</span>
+                        <span>Principal & Produk</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => { if (validateStep(1) && validateStep(2)) currentStep = 3; }}
+                        class="py-3 px-4 border-b-2 flex items-center justify-center gap-2 transition-all {currentStep === 3 ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    >
+                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] {currentStep === 3 ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'}">3</span>
+                        <span>Follow-up & Hasil</span>
+                    </button>
+                </div>
+
+                <!-- Form Error Notice -->
+                {#if formError}
+                    <div class="mx-6 mt-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                        <AlertCircle class="w-4 h-4 shrink-0" />
+                        <span>{formError}</span>
+                    </div>
+                {/if}
+
+                <!-- Modal Body -->
+                <div class="flex-1 overflow-y-auto p-6">
+                    <!-- STEP 1: INFO KUNJUNGAN -->
+                    {#if currentStep === 1}
+                        <div class="flex flex-col gap-4 text-xs">
+                            <div>
+                                <label for="formTitle" class="block font-semibold text-slate-700 mb-1">Judul Kunjungan (Visit Title) *</label>
+                                <input
+                                    id="formTitle"
+                                    type="text"
+                                    bind:value={formTitle}
+                                    placeholder="Contoh: Demo MICA Advance - Kalbe Farma"
+                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
+                                />
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="formDate" class="block font-semibold text-slate-700 mb-1">Tanggal Kunjungan *</label>
+                                    <input
+                                        id="formDate"
+                                        type="date"
+                                        bind:value={formDate}
+                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
+                                    />
+                                    <div class="flex items-center gap-1.5 mt-1.5">
+                                        <button type="button" onclick={() => setQuickDate(0)} class="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600">Hari Ini</button>
+                                        <button type="button" onclick={() => setQuickDate(1)} class="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600">Besok</button>
+                                        <button type="button" onclick={() => setQuickDate(7)} class="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600">+7 Hari</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="formStartTime" class="block font-semibold text-slate-700 mb-1">Waktu Mulai *</label>
+                                    <select
+                                        id="formStartTime"
+                                        bind:value={formStartTime}
+                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                    >
+                                        {#each timeOptions as t}
+                                            <option value={t}>{t}</option>
+                                        {/each}
+                                    </select>
+                                    <span class="text-[10px] text-slate-400 mt-1 block">Interval setiap 15 menit</span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="formVisitType" class="block font-semibold text-slate-700 mb-1">Tipe Kunjungan *</label>
+                                    <select
+                                        id="formVisitType"
+                                        bind:value={formVisitType}
+                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                    >
+                                        <option value="Offline Visit">Offline Visit</option>
+                                        <option value="Online Visit">Online Visit</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label for="formVisitPurpose" class="block font-semibold text-slate-700 mb-1">Tujuan Kunjungan</label>
+                                    <select
+                                        id="formVisitPurpose"
+                                        bind:value={formVisitPurpose}
+                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                    >
+                                        {#each visitPurposes as p}
+                                            <option value={p}>{p}</option>
+                                        {/each}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
+                                <div>
+                                    <label for="formCustomerId" class="block font-semibold text-slate-800 mb-1">Customer / Institusi *</label>
+                                    <select
+                                        id="formCustomerId"
+                                        bind:value={formCustomerId}
+                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                    >
+                                        <option value="">— Pilih Customer dari Database (1.291) —</option>
+                                        {#each customers as c}
+                                            <option value={c.id}>{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}</option>
+                                        {/each}
+                                    </select>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label for="formCustomerPicId" class="block font-semibold text-slate-700 mb-1">PIC Customer</label>
+                                        <select
+                                            id="formCustomerPicId"
+                                            bind:value={formCustomerPicId}
+                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                        >
+                                            <option value="">— Bebas / Belum Ditentukan —</option>
+                                            {#each availablePics as pic}
+                                                <option value={pic.id}>{pic.name} {pic.position ? `(${pic.position})` : ''}</option>
+                                            {/each}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label for="formSalesUserId" class="block font-semibold text-slate-700 mb-1">PIC Sales Penanggung Jawab</label>
+                                        <select
+                                            id="formSalesUserId"
+                                            bind:value={formSalesUserId}
+                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                        >
+                                            {#each salesUsers as u}
+                                                <option value={u.id}>{u.name} ({u.team || 'Sales'})</option>
+                                            {/each}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label for="formAgenda" class="block font-semibold text-slate-700 mb-1">Agenda Pertemuan</label>
+                                <textarea
+                                    id="formAgenda"
+                                    bind:value={formAgenda}
+                                    rows="2"
+                                    placeholder="Rincian topik atau tujuan agenda yang akan dibahas..."
+                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
+                                ></textarea>
+                            </div>
+
+                            <div>
+                                <label for="formPrevisitNotes" class="block font-semibold text-slate-700 mb-1">Pre-visit Notes</label>
+                                <textarea
+                                    id="formPrevisitNotes"
+                                    bind:value={formPrevisitNotes}
+                                    rows="2"
+                                    placeholder="Persiapan dokumen, sertifikat analisa, atau sampel produk..."
+                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
+                                ></textarea>
+                            </div>
+                        </div>
+                    {/if}
+
+                    <!-- STEP 2: PRINCIPAL & PRODUK -->
+                    {#if currentStep === 2}
+                        <div class="flex flex-col gap-4 text-xs">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="font-semibold text-slate-800 text-sm">Principal Review</span>
+                                    <p class="text-[11px] text-slate-400">Minimal satu principal wajib dicatat pada kunjungan ini</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onclick={addReviewItem}
+                                    class="flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 border border-slate-200 px-2.5 py-1.5 rounded-lg bg-white shadow-2xs hover:bg-slate-50"
+                                >
+                                    <Plus class="w-3.5 h-3.5" />
+                                    <span>Tambah Principal</span>
+                                </button>
+                            </div>
+
+                            {#each formReviews as review, index}
+                                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 flex flex-col gap-3">
+                                    <div class="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                                        <span class="font-bold text-slate-800 text-xs">Review #{index + 1}</span>
+                                        {#if formReviews.length > 1}
+                                            <button
+                                                type="button"
+                                                onclick={() => removeReviewItem(index)}
+                                                class="text-rose-500 hover:text-rose-700 p-1 transition-colors"
+                                            >
+                                                <Trash2 class="w-3.5 h-3.5" />
+                                            </button>
+                                        {/if}
+                                    </div>
+
+                                    <div>
+                                        <label for="reviewPrincipal{index}" class="block font-semibold text-slate-700 mb-1">Principal *</label>
+                                        <select
+                                            id="reviewPrincipal{index}"
+                                            bind:value={review.principal_name}
+                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                        >
+                                            <option value="">— Pilih Principal (192 Principal) —</option>
+                                            {#each principals as p}
+                                                <option value={p.name}>{p.name}</option>
+                                            {/each}
+                                        </select>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label for="reviewExposure{index}" class="block font-semibold text-slate-700 mb-1">Exposure Type</label>
+                                            <select
+                                                id="reviewExposure{index}"
+                                                bind:value={review.exposure_type}
+                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                            >
+                                                {#each exposureTypes as exp}
+                                                    <option value={exp}>{exp}</option>
+                                                {/each}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label for="reviewOpportunity{index}" class="block font-semibold text-slate-700 mb-1">Opportunity Status</label>
+                                            <select
+                                                id="reviewOpportunity{index}"
+                                                bind:value={review.opportunity_status}
+                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                            >
+                                                {#each opportunityStatuses as opp}
+                                                    <option value={opp}>{opp}</option>
+                                                {/each}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            {/each}
+                        </div>
+                    {/if}
+
+                    <!-- STEP 3: FOLLOW UP & HASIL -->
+                    {#if currentStep === 3}
+                        <div class="flex flex-col gap-4 text-xs">
+                            <div>
+                                <label for="formStatus" class="block font-semibold text-slate-700 mb-1">Status Kunjungan Saat Ini *</label>
+                                <select
+                                    id="formStatus"
+                                    bind:value={formStatus}
+                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white font-semibold"
+                                >
+                                    <option value="Planned">Planned (Terencana)</option>
+                                    <option value="Confirmed">Confirmed (Terkonfirmasi)</option>
+                                    <option value="In Progress">In Progress (Sedang Berjalan)</option>
+                                    <option value="Completed">Completed (Kunjungan Selesai)</option>
+                                    <option value="Cancelled">Cancelled (Dibatalkan)</option>
+                                </select>
+                                {#if formStatus === 'Completed'}
+                                    <span class="text-[11px] text-amber-600 font-medium mt-1 block">
+                                        * Aturan Sistem: Status 'Completed' mewajibkan Action Plan dan Ringkasan Hasil Pertemuan.
+                                    </span>
+                                {/if}
+                            </div>
+
+                            <div>
+                                <label for="formPostvisitResult" class="block font-semibold text-slate-700 mb-1">Post-visit Result (Ringkasan Hasil Pertemuan)</label>
+                                <textarea
+                                    id="formPostvisitResult"
+                                    bind:value={formPostvisitResult}
+                                    rows="3"
+                                    placeholder="Tuliskan poin penting hasil meeting atau temuan aktual di lapangan..."
+                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
+                                ></textarea>
+                            </div>
+
+                            <div class="border-t border-slate-100 pt-4 flex flex-col gap-3">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <span class="font-semibold text-slate-800 text-sm">Action Plan</span>
+                                        <p class="text-[11px] text-slate-400">Rencana tindak lanjut dan penugasan PIC</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onclick={addActionPlanItem}
+                                        class="flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 border border-slate-200 px-2.5 py-1.5 rounded-lg bg-white shadow-2xs hover:bg-slate-50"
+                                    >
+                                        <Plus class="w-3.5 h-3.5" />
+                                        <span>Tambah Action Plan</span>
+                                    </button>
+                                </div>
+
+                                {#each formActionPlans as plan, index}
+                                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2.5">
+                                        <div class="flex items-center justify-between">
+                                            <span class="font-semibold text-slate-700 text-xs">Tugas #{index + 1}</span>
+                                            {#if formActionPlans.length > 1}
+                                                <button
+                                                    type="button"
+                                                    onclick={() => removeActionPlanItem(index)}
+                                                    class="text-rose-500 hover:text-rose-700 p-1"
+                                                >
+                                                    <Trash2 class="w-3.5 h-3.5" />
+                                                </button>
+                                            {/if}
+                                        </div>
+                                        <div>
+                                            <label for="planTask{index}" class="block font-semibold text-slate-700 mb-1">Deskripsi Tugas</label>
+                                            <input
+                                                id="planTask{index}"
+                                                type="text"
+                                                bind:value={plan.task_description}
+                                                placeholder="Contoh: Kirim penawaran resmi (RFQ) dan brosur MICA"
+                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                            />
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-2">
+                                            <div>
+                                                <label for="planOwner{index}" class="block font-semibold text-slate-700 mb-1">Owner</label>
+                                                <select
+                                                    id="planOwner{index}"
+                                                    bind:value={plan.owner_user_id}
+                                                    class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                                >
+                                                    {#each salesUsers as u}
+                                                        <option value={u.id}>{u.name}</option>
+                                                    {/each}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label for="planDueDate{index}" class="block font-semibold text-slate-700 mb-1">Due Date</label>
+                                                <input
+                                                    id="planDueDate{index}"
+                                                    type="date"
+                                                    bind:value={plan.due_date}
+                                                    class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label for="planPriority{index}" class="block font-semibold text-slate-700 mb-1">Prioritas</label>
+                                                <select
+                                                    id="planPriority{index}"
+                                                    bind:value={plan.priority}
+                                                    class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                                >
+                                                    <option>Low</option>
+                                                    <option>Normal</option>
+                                                    <option>High</option>
+                                                    <option>Critical</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {/each}
+                            </div>
+                        </div>
+                    {/if}
+                </div>
+
+                <!-- Modal Stepper Footer -->
+                <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                    <div>
+                        <span class="text-xs text-slate-500 font-medium">Langkah {currentStep} dari 3</span>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        {#if currentStep > 1}
+                            <button
+                                type="button"
+                                onclick={prevStep}
+                                class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-700 transition-colors"
+                            >
+                                <ArrowLeft class="w-3.5 h-3.5" />
+                                <span>Kembali</span>
+                            </button>
+                        {/if}
+
+                        {#if currentStep < 3}
+                            <button
+                                type="button"
+                                onclick={nextStep}
+                                class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors cursor-pointer"
+                            >
+                                <span>Lanjut ke Langkah {currentStep + 1}</span>
+                                <ArrowRight class="w-3.5 h-3.5" />
+                            </button>
+                        {:else}
+                            <button
+                                type="button"
+                                onclick={submitVisit}
+                                disabled={isSubmitting}
+                                class="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer shadow-xs"
+                            >
+                                <CheckCircle2 class="w-3.5 h-3.5" />
+                                <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Kunjungan'}</span>
+                            </button>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+        </div>
     {/if}
 </div>
