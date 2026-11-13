@@ -29,8 +29,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('position', 100)->nullable();
             $table->string('department', 100)->nullable();
-            $table->string('phone', 50)->nullable();
-            $table->string('email')->nullable();
+            $table->string('phone', 255)->nullable();
+            $table->string('email', 255)->nullable();
             $table->boolean('is_primary')->default(false);
             $table->timestamps();
         });
@@ -52,8 +52,8 @@ return new class extends Migration
             $table->string('catalogue', 100)->index();
             $table->string('name');
             $table->text('description')->nullable();
-            $table->string('category', 100)->nullable();
-            $table->string('unit', 50)->nullable();
+            $table->string('category', 255)->nullable();
+            $table->text('unit')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
