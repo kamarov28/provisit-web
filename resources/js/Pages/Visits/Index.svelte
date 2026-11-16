@@ -117,7 +117,7 @@
         formPrevisitNotes = '';
         formStatus = 'Planned';
         formReviews = [
-            { principal_id: principals.length > 0 ? String(principals[0].id) : '', principal_name: principals.length > 0 ? principals[0].name : '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
+            { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
         ];
         formPostvisitResult = '';
         formActionPlans = [
@@ -233,7 +233,7 @@
             status: formStatus,
             postvisit_result: formPostvisitResult,
             principal_reviews: formReviews.map(r => ({
-                principal_id: r.principal_id || null,
+                principal_id: principals.find(p => p.name.trim().toLocaleLowerCase() === r.principal_name.trim().toLocaleLowerCase())?.id || null,
                 principal_name: r.principal_name,
                 exposure_type: r.exposure_type,
                 opportunity_status: r.opportunity_status,
@@ -1104,12 +1104,12 @@
                                             id="reviewPrincipal{index}"
                                             type="text"
                                             bind:value={review.principal_name}
-                                            list="principal-institution-options"
+                                            list={`principal-institution-options-${index}`}
                                             autocomplete="off"
                                             placeholder="Ketik nama institution atau principal..."
                                             class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
                                         />
-                                        <datalist id="principal-institution-options">
+                                        <datalist id={`principal-institution-options-${index}`}>
                                             {#each principals as p}
                                                 <option value={p.name}></option>
                                             {/each}
