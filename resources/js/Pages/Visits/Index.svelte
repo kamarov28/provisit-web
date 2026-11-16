@@ -185,9 +185,131 @@
         }));
     }
 
+    function clearPrincipalSelection(review) {
+        if (review.productSearchTimer) {
+            clearTimeout(review.productSearchTimer);
+        }
+
+        review.productRequestId = (review.productRequestId || 0) + 1;
+        review.principal_id = '';
+        review.products = [];
+        review.productSearch = '';
+        review.productResults = [];
+        review.productLoading = false;
+        review.productError = '';
+    }
+
     function selectPrincipal(review, principal) {
+        if (review.productSearchTimer) {
+            clearTimeout(review.productSearchTimer);
+        }
+
+        review.productRequestId = (review.productRequestId || 0) + 1;
         review.principal_id = String(principal.id);
         review.principal_name = principal.name;
+        review.products = [];
+        review.productSearch = '';
+        review.productResults = [];
+        review.productLoading = false;
+        review.productError = '';
+    }
+
+    function searchProducts(review) {
+        if (review.productSearchTimer) {
+            clearTimeout(review.productSearchTimer);
+        }
+
+        const query = String(review.productSearch || '').trim();
+
+        review.productResults = [];
+        review.productError = '';
+
+        if (!review.principal_id || query.length < 2) {
+            review.productRequestId = (review.productRequestId || 0) + 1;
+            review.productLoading = false;
+            return;
+        }
+
+        const requestId = (review.productRequestId || 0) + 1;
+        const principalId = String(review.principal_id);
+
+        review.productRequestId = requestId;
+        review.productLoading = true;
+
+        review.productSearchTimer = setTimeout(async () => {
+            try {
+                const params = new URLSearchParams({
+                    principal_id: principalId,
+                    q: query
+                });
+
+                const response = await fetch(`/products/search?${params}`, {
+                    headers: { Accept: 'application/json' }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Pencarian produk gagal.');
+                }
+
+                const results = await response.json();
+
+                if (
+                    review.productRequestId !== requestId ||
+                    String(review.principal_id) !== principalId ||
+                    String(review.productSearch || '').trim() !== query
+                ) {
+                    return;
+                }
+
+                const selectedCatalogues = (review.products || [])
+                    .map(product =>
+                        String(product.catalogue || '').trim().toLowerCase()
+                    );
+
+                review.productResults = results.filter(product =>
+                    !selectedCatalogues.includes(
+                        String(product.catalogue || '').trim().toLowerCase()
+                    )
+                );
+            } catch (error) {
+                if (review.productRequestId === requestId) {
+                    review.productError = error.message || 'Gagal mencari produk.';
+                }
+            } finally {
+                if (review.productRequestId === requestId) {
+                    review.productLoading = false;
+                }
+            }
+        }, 300);
+    }
+
+    function addReviewProduct(review, product) {
+        const catalogue = String(product.catalogue || '').trim().toLowerCase();
+
+        const duplicate = (review.products || []).some(item =>
+            String(item.catalogue || '').trim().toLowerCase() === catalogue
+        );
+
+        if (duplicate) return;
+
+        review.products = [
+            ...(review.products || []),
+            {
+                product_id: String(product.id),
+                catalogue: product.catalogue,
+                description: product.description || product.name || ''
+            }
+        ];
+
+        review.productSearch = '';
+        review.productResults = [];
+        review.productError = '';
+    }
+
+    function removeReviewProduct(review, productId) {
+        review.products = (review.products || []).filter(
+            product => String(product.product_id) !== String(productId)
+        );
     }
 
     function setQuickDate(days) {
@@ -1131,6 +1253,27 @@
                                     class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
                                 ></textarea>
                             </div>
+
+                            <div>
+                                <label for="formStatus" class="block font-semibold text-slate-700 mb-1">Status Kunjungan *</label>
+                                <select
+                                    id="formStatus"
+                                    bind:value={formStatus}
+                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white font-semibold"
+                                >
+                                    <option value="Draft">Draft</option>
+                                    <option value="Planned">Planned (Terencana)</option>
+                                    <option value="Confirmed">Confirmed (Terkonfirmasi)</option>
+                                    <option value="Completed">Completed (Kunjungan Selesai)</option>
+                                    <option value="Cancelled">Cancelled (Dibatalkan)</option>
+                                </select>
+
+                                {#if formStatus === 'Completed'}
+                                    <span class="text-[11px] text-amber-600 font-medium mt-1 block">
+                                        Status Completed mewajibkan Post-visit Result dan Action Plan.
+                                    </span>
+                                {/if}
+                            </div>
                         </div>
                     {/if}
 
@@ -1174,7 +1317,7 @@
                                                 id="reviewPrincipal{index}"
                                                 type="text"
                                                 bind:value={review.principal_name}
-                                                oninput={() => review.principal_id = ''}
+                                                oninput={() => clearPrincipalSelection(review)}
                                                 autocomplete="off"
                                                 placeholder="Ketik nama institution atau principal..."
                                                 class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
@@ -1225,6 +1368,71 @@
                                             </select>
                                         </div>
                                     </div>
+
+                                    <div class="border-t border-slate-200 pt-3 flex flex-col gap-2">
+                                        <div>
+                                            <label for="productSearch{index}" class="block font-semibold text-slate-700 mb-1">Produk Principal</label>
+
+                                            {#if review.principal_id}
+                                                <input
+                                                    id="productSearch{index}"
+                                                    type="text"
+                                                    bind:value={review.productSearch}
+                                                    oninput={() => searchProducts(review)}
+                                                    autocomplete="off"
+                                                    placeholder="Cari Catalogue atau Description (min. 2 karakter)..."
+                                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                                />
+
+                                                {#if review.productLoading}
+                                                    <p class="text-[10px] text-slate-400 mt-1">Mencari produk...</p>
+                                                {:else if review.productError}
+                                                    <p class="text-[10px] text-rose-600 mt-1">{review.productError}</p>
+                                                {:else if (review.productSearch || '').trim().length >= 2 && review.productResults?.length > 0}
+                                                    <div class="mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+                                                        {#each review.productResults as product}
+                                                            <button
+                                                                type="button"
+                                                                onclick={() => addReviewProduct(review, product)}
+                                                                class="w-full px-3 py-2 text-left border-b border-slate-100 last:border-0 hover:bg-slate-50"
+                                                            >
+                                                                <span class="block font-semibold text-slate-800">{product.catalogue}</span>
+                                                                <span class="block text-[10px] text-slate-500">{product.description || product.name}</span>
+                                                            </button>
+                                                        {/each}
+                                                    </div>
+                                                {:else if (review.productSearch || '').trim().length >= 2}
+                                                    <p class="text-[10px] text-slate-400 mt-1">Tidak ada produk yang cocok atau semua hasil sudah dipilih.</p>
+                                                {/if}
+                                            {:else}
+                                                <p class="text-[10px] text-slate-400">Pilih Principal terlebih dahulu untuk mencari produk.</p>
+                                            {/if}
+                                        </div>
+
+                                        {#if review.products?.length > 0}
+                                            <div class="flex flex-col gap-1.5">
+                                                <span class="text-[10px] font-semibold text-slate-500">Produk dipilih ({review.products.length})</span>
+
+                                                {#each review.products as product}
+                                                    <div class="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                                        <div class="min-w-0">
+                                                            <span class="block text-xs font-semibold text-slate-800">{product.catalogue}</span>
+                                                            <span class="block text-[10px] text-slate-500">{product.description}</span>
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => removeReviewProduct(review, product.product_id)}
+                                                            class="shrink-0 text-rose-500 hover:text-rose-700"
+                                                            aria-label="Hapus produk"
+                                                        >
+                                                            <X class="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                {/each}
+                                            </div>
+                                        {/if}
+                                    </div>
                                 </div>
                             {/each}
                         </div>
@@ -1233,25 +1441,6 @@
                     <!-- STEP 3: FOLLOW UP & HASIL -->
                     {#if currentStep === 3}
                         <div class="flex flex-col gap-4 text-xs">
-                            <div>
-                                <label for="formStatus" class="block font-semibold text-slate-700 mb-1">Status Kunjungan Saat Ini *</label>
-                                <select
-                                    id="formStatus"
-                                    bind:value={formStatus}
-                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white font-semibold"
-                                >
-                                    <option value="Planned">Planned (Terencana)</option>
-                                    <option value="Confirmed">Confirmed (Terkonfirmasi)</option>
-                                    <option value="In Progress">In Progress (Sedang Berjalan)</option>
-                                    <option value="Completed">Completed (Kunjungan Selesai)</option>
-                                    <option value="Cancelled">Cancelled (Dibatalkan)</option>
-                                </select>
-                                {#if formStatus === 'Completed'}
-                                    <span class="text-[11px] text-amber-600 font-medium mt-1 block">
-                                        * Aturan Sistem: Status 'Completed' mewajibkan Action Plan dan Ringkasan Hasil Pertemuan.
-                                    </span>
-                                {/if}
-                            </div>
 
                             <div>
                                 <label for="formPostvisitResult" class="block font-semibold text-slate-700 mb-1">Post-visit Result (Ringkasan Hasil Pertemuan)</label>

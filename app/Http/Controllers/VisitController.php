@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\CustomerPic;
 use App\Models\Principal;
+use App\Models\Product;
 use App\Models\User;
 use App\Models\Visit;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 
 class VisitController extends Controller
@@ -77,6 +81,30 @@ class VisitController extends Controller
         ]);
     }
 
+
+    public function productSearch(Request $request)
+    {
+        $validated = $request->validate([
+            'principal_id' => 'required|integer|exists:principals,id',
+            'q' => 'required|string|min:2|max:100',
+        ]);
+
+        $term = trim($validated['q']);
+
+        $products = Product::query()
+            ->where('principal_id', $validated['principal_id'])
+            ->where('is_active', true)
+            ->where(function ($query) use ($term) {
+                $query->where('catalogue', 'like', "%{$term}%")
+                    ->orWhere('description', 'like', "%{$term}%");
+            })
+            ->orderBy('catalogue')
+            ->limit(20)
+            ->get(['id', 'principal_id', 'catalogue', 'name', 'description']);
+
+        return response()->json($products);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -89,14 +117,28 @@ class VisitController extends Controller
             'customer_pic_id' => 'nullable|exists:customer_pics,id',
             'agenda' => 'nullable|string',
             'previsit_notes' => 'nullable|string',
-            'status' => 'required|string',
+            'status' => [
+                'required',
+                Rule::in(['Draft', 'Planned', 'Confirmed', 'Completed', 'Cancelled']),
+            ],
             'postvisit_result' => 'nullable|string',
+
             'principal_reviews' => 'required|array|min:1',
-            'principal_reviews.*.principal_id' => 'nullable|exists:principals,id',
-            'principal_reviews.*.principal_name' => 'required|string',
+            'principal_reviews.*.principal_id' => [
+                'required',
+                'integer',
+                Rule::exists('principals', 'id')->where('is_active', true),
+            ],
+            'principal_reviews.*.principal_name' => 'nullable|string',
             'principal_reviews.*.exposure_type' => 'nullable|string',
             'principal_reviews.*.opportunity_status' => 'nullable|string',
             'principal_reviews.*.products' => 'nullable|array',
+            'principal_reviews.*.products.*.product_id' => [
+                'required',
+                'integer',
+                'exists:products,id',
+            ],
+
             'action_plans' => 'nullable|array',
             'action_plans.*.task_description' => 'required|string',
             'action_plans.*.owner_user_id' => 'nullable|exists:users,id',
@@ -104,8 +146,13 @@ class VisitController extends Controller
             'action_plans.*.priority' => 'nullable|string',
         ]);
 
-        if ($validated['status'] === 'Completed' && empty($validated['action_plans'])) {
-            return back()->withErrors(['action_plans' => 'Action Plan wajib diisi jika status kunjungan Completed.']);
+        if (
+            $validated['status'] === 'Completed'
+            && empty($validated['action_plans'])
+        ) {
+            return back()->withErrors([
+                'action_plans' => 'Action Plan wajib diisi jika status kunjungan Completed.',
+            ]);
         }
 
         $customer = Customer::findOrFail($validated['customer_id']);
@@ -144,67 +191,116 @@ class VisitController extends Controller
 
         $salesUserId = $salesUser?->id;
 
-        $countThisYear = Visit::whereYear('created_at', now()->year)->count() + 1;
-        $visitCode = 'VST-' . now()->year . '-' . str_pad($countThisYear, 6, '0', STR_PAD_LEFT);
+        // Seluruh validasi Principal dan produk dilakukan sebelum Visit dibuat.
+        // Jika gagal, ValidationException membatalkan seluruh transaksi.
+        $visit = DB::transaction(function () use (
+            $validated,
+            $customer,
+            $pic,
+            $salesUserId
+        ) {
+            $productsByReview = [];
+            $principalNames = [];
 
+            foreach ($validated['principal_reviews'] as $index => $revData) {
+                $principal = Principal::where('is_active', true)
+                    ->find($revData['principal_id']);
 
-        $visit = Visit::create([
-            'visit_code' => $visitCode,
-            'title' => $validated['title'],
-            'visit_date' => $validated['visit_date'],
-            'start_time' => $validated['start_time'],
-            'customer_id' => $customer->id,
-            'customer_name_snapshot' => $customer->name,
-            'customer_pic_id' => $pic?->id,
-            'pic_name_snapshot' => $pic?->name,
-            'pic_position_snapshot' => $pic?->position,
-            'primary_sales_user_id' => $salesUserId,
-            'visit_type' => $validated['visit_type'],
-            'visit_purpose' => $validated['visit_purpose'] ?? 'Product Introduction / Presentation',
-            'agenda' => $validated['agenda'] ?? null,
-            'previsit_notes' => $validated['previsit_notes'] ?? null,
-            'postvisit_result' => $validated['postvisit_result'] ?? null,
-            'status' => $validated['status'],
-            'report_completed_at' => $validated['status'] === 'Completed' ? now() : null,
-        ]);
+                if (!$principal) {
+                    throw ValidationException::withMessages([
+                        'principal_reviews' => 'Principal tidak ditemukan atau sudah tidak aktif.',
+                    ]);
+                }
 
-        foreach ($validated['principal_reviews'] as $revData) {
-            $pId = $revData['principal_id'] ?? null;
-            if (!$pId && !empty($revData['principal_name'])) {
-                $p = Principal::firstOrCreate(['name' => $revData['principal_name']], ['is_active' => true]);
-                $pId = $p->id;
+                $principalNames[$index] = $principal->name;
+
+                $productIds = collect($revData['products'] ?? [])
+                    ->pluck('product_id')
+                    ->unique()
+                    ->values();
+
+                $products = collect();
+
+                if ($productIds->isNotEmpty()) {
+                    $products = Product::query()
+                        ->whereIn('id', $productIds)
+                        ->where('principal_id', $principal->id)
+                        ->where('is_active', true)
+                        ->get()
+                        ->keyBy('id');
+
+                    if ($products->count() !== $productIds->count()) {
+                        throw ValidationException::withMessages([
+                            'principal_reviews' => 'Salah satu produk tidak sesuai dengan Principal yang dipilih atau sudah tidak aktif.',
+                        ]);
+                    }
+                }
+
+                $productsByReview[$index] = $products;
             }
 
-            $rev = $visit->principalReviews()->create([
-                'principal_id' => $pId,
-                'principal_name_snapshot' => $revData['principal_name'],
-                'exposure_type' => $revData['exposure_type'] ?? null,
-                'opportunity_status' => $revData['opportunity_status'] ?? null,
+            $countThisYear = Visit::whereYear('created_at', now()->year)->count() + 1;
+
+            $visitCode = 'VST-' . now()->year . '-' .
+                str_pad($countThisYear, 6, '0', STR_PAD_LEFT);
+
+            $visit = Visit::create([
+                'visit_code' => $visitCode,
+                'title' => $validated['title'],
+                'visit_date' => $validated['visit_date'],
+                'start_time' => $validated['start_time'],
+                'customer_id' => $customer->id,
+                'customer_name_snapshot' => $customer->name,
+                'customer_pic_id' => $pic?->id,
+                'pic_name_snapshot' => $pic?->name,
+                'pic_position_snapshot' => $pic?->position,
+                'primary_sales_user_id' => $salesUserId,
+                'visit_type' => $validated['visit_type'],
+                'visit_purpose' => $validated['visit_purpose'] ?? 'Product Introduction / Presentation',
+                'agenda' => $validated['agenda'] ?? null,
+                'previsit_notes' => $validated['previsit_notes'] ?? null,
+                'postvisit_result' => $validated['postvisit_result'] ?? null,
+                'status' => $validated['status'],
+                'report_completed_at' => $validated['status'] === 'Completed' ? now() : null,
             ]);
 
-            if (!empty($revData['products'])) {
-                foreach ($revData['products'] as $prod) {
+            foreach ($validated['principal_reviews'] as $index => $revData) {
+                $rev = $visit->principalReviews()->create([
+                    'principal_id' => $revData['principal_id'],
+                    'principal_name_snapshot' => $principalNames[$index],
+                    'exposure_type' => $revData['exposure_type'] ?? null,
+                    'opportunity_status' => $revData['opportunity_status'] ?? null,
+                ]);
+
+                foreach ($revData['products'] ?? [] as $prod) {
+                    $product = $productsByReview[$index]->get($prod['product_id']);
+
                     $rev->products()->create([
-                        'product_catalogue' => $prod['catalogue'] ?? '-',
-                        'product_description_snapshot' => $prod['description'] ?? '-',
+                        'product_id' => $product->id,
+                        'product_catalogue' => $product->catalogue,
+                        'product_description_snapshot' => $product->description ?? $product->name,
                     ]);
                 }
             }
-        }
 
-        if (!empty($validated['action_plans'])) {
-            foreach ($validated['action_plans'] as $actData) {
-                $visit->actionPlans()->create([
-                    'task_description' => $actData['task_description'],
-                    'owner_user_id' => $actData['owner_user_id'] ?? $salesUserId,
-                    'due_date' => $actData['due_date'] ?? null,
-                    'priority' => $actData['priority'] ?? 'Normal',
-                    'status' => 'Open',
-                ]);
+            if (!empty($validated['action_plans'])) {
+                foreach ($validated['action_plans'] as $actData) {
+                    $visit->actionPlans()->create([
+                        'task_description' => $actData['task_description'],
+                        'owner_user_id' => $actData['owner_user_id'] ?? $salesUserId,
+                        'due_date' => $actData['due_date'] ?? null,
+                        'priority' => $actData['priority'] ?? 'Normal',
+                        'status' => 'Open',
+                    ]);
+                }
             }
-        }
 
-        return redirect()->route('visits.index')->with('success', "Visit {$visitCode} berhasil disimpan.");
+            return $visit;
+        });
+
+        return redirect()
+            ->route('visits.index')
+            ->with('success', "Visit {$visit->visit_code} berhasil disimpan.");
     }
 }
 
