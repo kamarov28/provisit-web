@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\CustomerPic;
 use App\Models\Principal;
 use App\Models\User;
 use App\Models\Visit;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+
 
 class VisitController extends Controller
 {
@@ -48,13 +50,20 @@ class VisitController extends Controller
             ->with(['pics' => function ($q) {
                 $q->select('id', 'customer_id', 'name', 'position', 'phone', 'email');
             }])
-            ->select('id', 'customer_code', 'name', 'sector')
+            ->select('id', 'customer_code', 'name', 'sector', 'sales_initial')
             ->orderBy('name')
             ->get();
 
         $salesUsers = User::where('is_active', true)
-            ->whereIn('role', ['sales', 'admin', 'manager'])
-            ->select('id', 'name', 'email', 'team')
+            ->whereIn('role', [
+                'sales',
+                'admin',
+                'manager',
+                'management',
+                'product_specialist',
+                'sales_coordinator',
+            ])
+            ->select('id', 'name', 'email', 'team', 'initial', 'role')
             ->orderBy('name')
             ->get();
 
@@ -78,7 +87,6 @@ class VisitController extends Controller
             'visit_purpose' => 'nullable|string',
             'customer_id' => 'required|exists:customers,id',
             'customer_pic_id' => 'nullable|exists:customer_pics,id',
-            'primary_sales_user_id' => 'nullable|exists:users,id',
             'agenda' => 'nullable|string',
             'previsit_notes' => 'nullable|string',
             'status' => 'required|string',
@@ -101,12 +109,44 @@ class VisitController extends Controller
         }
 
         $customer = Customer::findOrFail($validated['customer_id']);
-        $pic = !empty($validated['customer_pic_id']) ? CustomerPic::find($validated['customer_pic_id']) : null;
+
+        $pic = null;
+
+        if (!empty($validated['customer_pic_id'])) {
+            $pic = $customer->pics()
+                ->whereKey($validated['customer_pic_id'])
+                ->first();
+
+            if (!$pic) {
+                return back()->withErrors([
+                    'customer_pic_id' => 'PIC Customer tidak terdaftar pada Customer yang dipilih.',
+                ]);
+            }
+        }
+
+        // Resolve PIC Sales dari Customer Master -> User Master
+        $salesInitial = strtoupper(trim((string) $customer->sales_initial));
+
+        $salesUser = null;
+
+        if ($salesInitial !== '') {
+            $salesUser = User::where('is_active', true)
+                ->whereRaw('UPPER(TRIM(initial)) = ?', [$salesInitial])
+                ->select('id')
+                ->first();
+
+            if (!$salesUser) {
+                return back()->withErrors([
+                    'customer_id' => "PIC Sales dengan initial {$salesInitial} tidak ditemukan atau tidak aktif.",
+                ]);
+            }
+        }
+
+        $salesUserId = $salesUser?->id;
 
         $countThisYear = Visit::whereYear('created_at', now()->year)->count() + 1;
         $visitCode = 'VST-' . now()->year . '-' . str_pad($countThisYear, 6, '0', STR_PAD_LEFT);
 
-        $salesUserId = $validated['primary_sales_user_id'] ?? User::where('role', 'sales')->value('id');
 
         $visit = Visit::create([
             'visit_code' => $visitCode,
@@ -167,3 +207,4 @@ class VisitController extends Controller
         return redirect()->route('visits.index')->with('success', "Visit {$visitCode} berhasil disimpan.");
     }
 }
+

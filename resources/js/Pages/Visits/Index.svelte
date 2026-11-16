@@ -108,6 +108,13 @@
         return cust && cust.pics ? cust.pics : [];
     });
 
+    let selectedSalesUser = $derived(
+        salesUsers.find(
+            u => String(u.initial || '').trim().toUpperCase() ===
+                String(customers.find(c => String(c.id) === String(formCustomerId))?.sales_initial || '').trim().toUpperCase()
+        ) || null
+    );
+
     function openNewVisitModal() {
         currentStep = 1;
         formError = '';
@@ -119,7 +126,7 @@
         formCustomerId = '';
         formCustomerSearch = '';
         formCustomerPicId = '';
-        formSalesUserId = salesUsers.length > 0 ? String(salesUsers[0].id) : '';
+        formSalesUserId = '';
         formAgenda = '';
         formPrevisitNotes = '';
         formStatus = 'Planned';
@@ -138,10 +145,44 @@
         isModalOpen = false;
     }
 
+    function clearCustomerSelection() {
+        const previousSalesUserId = formSalesUserId;
+
+        formCustomerId = '';
+        formCustomerPicId = '';
+        formSalesUserId = '';
+
+        formActionPlans = formActionPlans.map(plan => ({
+            ...plan,
+            owner_user_id:
+                !plan.owner_user_id || String(plan.owner_user_id) === String(previousSalesUserId)
+                    ? ''
+                    : plan.owner_user_id
+        }));
+    }
+
     function selectCustomer(customer) {
+        const previousSalesUserId = formSalesUserId;
+        const salesInitial = String(customer.sales_initial || '').trim().toUpperCase();
+
+        const matchedSalesUser = salesUsers.find(
+            user => String(user.initial || '').trim().toUpperCase() === salesInitial
+        );
+
         formCustomerId = String(customer.id);
         formCustomerSearch = customer.name;
         formCustomerPicId = '';
+        formSalesUserId = matchedSalesUser ? String(matchedSalesUser.id) : '';
+
+        // Perbarui owner default Action Plan, tetapi pertahankan owner
+        // yang sebelumnya sudah dipilih secara manual.
+        formActionPlans = formActionPlans.map(plan => ({
+            ...plan,
+            owner_user_id:
+                !plan.owner_user_id || String(plan.owner_user_id) === String(previousSalesUserId)
+                    ? formSalesUserId
+                    : plan.owner_user_id
+        }));
     }
 
     function selectPrincipal(review, principal) {
@@ -249,7 +290,7 @@
             visit_purpose: formVisitPurpose,
             customer_id: formCustomerId,
             customer_pic_id: formCustomerPicId || null,
-            primary_sales_user_id: formSalesUserId || null,
+
             agenda: formAgenda,
             previsit_notes: formPrevisitNotes,
             status: formStatus,
@@ -354,12 +395,12 @@
     // Filtered visits
     let filteredVisits = $derived.by(() => {
         return visits.filter(v => {
-            const matchSearch = !searchQuery || 
+            const matchSearch = !searchQuery ||
                 (v.title && v.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
                 (v.customer_name_snapshot && v.customer_name_snapshot.toLowerCase().includes(searchQuery.toLowerCase())) ||
                 (v.visit_code && v.visit_code.toLowerCase().includes(searchQuery.toLowerCase()));
 
-            const matchTeam = selectedTeam === 'ALL' || 
+            const matchTeam = selectedTeam === 'ALL' ||
                 (v.primary_sales_user && v.primary_sales_user.team === selectedTeam);
 
             return matchSearch && matchTeam;
@@ -752,7 +793,7 @@
 
                     <span class="text-slate-400 flex items-center gap-1.5"><UserIcon class="w-3.5 h-3.5" /> PIC Pelanggan</span>
                     <span class="text-slate-700">
-                        {selectedVisit.pic_name_snapshot || '-'} 
+                        {selectedVisit.pic_name_snapshot || '-'}
                         {#if selectedVisit.pic_position_snapshot}
                             <span class="text-slate-400">({selectedVisit.pic_position_snapshot})</span>
                         {/if}
@@ -1013,10 +1054,7 @@
                                             id="formCustomerId"
                                             type="text"
                                             bind:value={formCustomerSearch}
-                                            oninput={() => {
-                                                formCustomerId = '';
-                                                formCustomerPicId = '';
-                                            }}
+                                            oninput={clearCustomerSelection}
                                             autocomplete="off"
                                             placeholder="Ketik nama customer atau institusi..."
                                             class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
@@ -1061,15 +1099,13 @@
 
                                     <div>
                                         <label for="formSalesUserId" class="block font-semibold text-slate-700 mb-1">PIC Sales Penanggung Jawab</label>
-                                        <select
+                                        <input
                                             id="formSalesUserId"
-                                            bind:value={formSalesUserId}
-                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                        >
-                                            {#each salesUsers as u}
-                                                <option value={u.id}>{u.name} ({u.team || 'Sales'})</option>
-                                            {/each}
-                                        </select>
+                                            type="text"
+                                            value={selectedSalesUser ? `${selectedSalesUser.name} (${selectedSalesUser.initial})` : formCustomerId ? 'PIC Sales belum terdaftar' : 'Otomatis dari Customer Master'}
+                                            readonly
+                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-600 cursor-not-allowed"
+                                        />
                                     </div>
                                 </div>
                             </div>
