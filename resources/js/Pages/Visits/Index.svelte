@@ -54,6 +54,13 @@
     let formVisitPurpose = $state('Product Introduction / Presentation');
     let formCustomerId = $state('');
     let formCustomerSearch = $state('');
+    let filteredCustomers = $derived.by(() => {
+        const query = formCustomerSearch.trim().toLocaleLowerCase();
+        if (query.length < 1) return [];
+        return customers
+            .filter(c => c.name.toLocaleLowerCase().includes(query))
+            .slice(0, 8);
+    });
     let formCustomerPicId = $state('');
     let formSalesUserId = $state('');
     let formAgenda = $state('');
@@ -131,6 +138,17 @@
         isModalOpen = false;
     }
 
+    function selectCustomer(customer) {
+        formCustomerId = String(customer.id);
+        formCustomerSearch = customer.name;
+        formCustomerPicId = '';
+    }
+
+    function selectPrincipal(review, principal) {
+        review.principal_id = String(principal.id);
+        review.principal_name = principal.name;
+    }
+
     function setQuickDate(days) {
         const d = new Date();
         d.setDate(d.getDate() + days);
@@ -184,8 +202,12 @@
                 return false;
             }
             for (let rev of formReviews) {
-                if (!rev.principal_name) {
-                    formError = 'Pastikan semua baris review telah memilih Principal.';
+                const selectedPrincipal = principals.some(p =>
+                    String(p.id) === String(rev.principal_id) &&
+                    p.name.trim().toLocaleLowerCase() === rev.principal_name.trim().toLocaleLowerCase()
+                );
+                if (!selectedPrincipal) {
+                    formError = 'Pilih Institution / Principal dari hasil pencarian yang tersedia.';
                     return false;
                 }
             }
@@ -233,7 +255,7 @@
             status: formStatus,
             postvisit_result: formPostvisitResult,
             principal_reviews: formReviews.map(r => ({
-                principal_id: principals.find(p => p.name.trim().toLocaleLowerCase() === r.principal_name.trim().toLocaleLowerCase())?.id || null,
+                principal_id: r.principal_id || null,
                 principal_name: r.principal_name,
                 exposure_type: r.exposure_type,
                 opportunity_status: r.opportunity_status,
@@ -986,29 +1008,40 @@
                             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
                                 <div>
                                     <label for="formCustomerId" class="block font-semibold text-slate-800 mb-1">Customer / Institusi *</label>
-                                    <input
-                                        id="formCustomerId"
-                                        type="text"
-                                        bind:value={formCustomerSearch}
-                                        oninput={() => {
-                                            const query = formCustomerSearch.trim().toLocaleLowerCase();
-                                            const match = customers.find(c => c.name.trim().toLocaleLowerCase() === query);
-                                            formCustomerId = match ? String(match.id) : '';
-                                            formCustomerPicId = '';
-                                        }}
-                                        list="customer-institution-options"
-                                        autocomplete="off"
-                                        placeholder="Ketik nama customer atau institusi..."
-                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                    />
-                                    <datalist id="customer-institution-options">
-                                        {#each customers as c}
-                                            <option value={c.name} label={c.customer_code || ''}></option>
-                                        {/each}
-                                    </datalist>
-                                    {#if formCustomerSearch.trim() && !formCustomerId}
-                                        <p class="mt-1 text-[10px] text-amber-600">Pilih nama yang tersedia di daftar agar data customer dan PIC dapat dicocokkan.</p>
-                                    {/if}
+                                    <div class="relative">
+                                        <input
+                                            id="formCustomerId"
+                                            type="text"
+                                            bind:value={formCustomerSearch}
+                                            oninput={() => {
+                                                formCustomerId = '';
+                                                formCustomerPicId = '';
+                                            }}
+                                            autocomplete="off"
+                                            placeholder="Ketik nama customer atau institusi..."
+                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                        />
+                                        {#if formCustomerSearch.trim() && !formCustomerId}
+                                            <div class="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                                                {#if filteredCustomers.length > 0}
+                                                    {#each filteredCustomers as c}
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => selectCustomer(c)}
+                                                            class="w-full px-3 py-2 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                                                        >
+                                                            <span class="block text-xs font-medium text-slate-800">{c.name}</span>
+                                                            {#if c.customer_code}
+                                                                <span class="block mt-0.5 text-[10px] text-slate-400">{c.customer_code}</span>
+                                                            {/if}
+                                                        </button>
+                                                    {/each}
+                                                {:else}
+                                                    <p class="px-3 py-3 text-xs text-slate-500">Tidak ada customer yang cocok.</p>
+                                                {/if}
+                                            </div>
+                                        {/if}
+                                    </div>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-3">
@@ -1100,20 +1133,33 @@
 
                                     <div>
                                         <label for="reviewPrincipal{index}" class="block font-semibold text-slate-700 mb-1">Institution / Principal *</label>
-                                        <input
-                                            id="reviewPrincipal{index}"
-                                            type="text"
-                                            bind:value={review.principal_name}
-                                            list={`principal-institution-options-${index}`}
-                                            autocomplete="off"
-                                            placeholder="Ketik nama institution atau principal..."
-                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                        />
-                                        <datalist id={`principal-institution-options-${index}`}>
-                                            {#each principals as p}
-                                                <option value={p.name}></option>
-                                            {/each}
-                                        </datalist>
+                                        <div class="relative">
+                                            <input
+                                                id="reviewPrincipal{index}"
+                                                type="text"
+                                                bind:value={review.principal_name}
+                                                oninput={() => review.principal_id = ''}
+                                                autocomplete="off"
+                                                placeholder="Ketik nama institution atau principal..."
+                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
+                                            />
+                                            {#if review.principal_name.trim() && !principals.some(p => p.name.trim().toLocaleLowerCase() === review.principal_name.trim().toLocaleLowerCase() && String(p.id) === String(review.principal_id))}
+                                                <div class="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                                                    {#each principals.filter(p => p.name.toLocaleLowerCase().includes(review.principal_name.trim().toLocaleLowerCase())).slice(0, 8) as p}
+                                                        <button
+                                                            type="button"
+                                                            onclick={() => selectPrincipal(review, p)}
+                                                            class="w-full px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-50 border-b border-slate-100 last:border-0"
+                                                        >
+                                                            {p.name}
+                                                        </button>
+                                                    {/each}
+                                                    {#if !principals.some(p => p.name.toLocaleLowerCase().includes(review.principal_name.trim().toLocaleLowerCase()))}
+                                                        <p class="px-3 py-3 text-xs text-slate-500">Tidak ada institution / principal yang cocok.</p>
+                                                    {/if}
+                                                </div>
+                                            {/if}
+                                        </div>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-3">
