@@ -53,6 +53,7 @@
     let formVisitType = $state('Offline Visit');
     let formVisitPurpose = $state('Product Introduction / Presentation');
     let formCustomerId = $state('');
+    let formCustomerSearch = $state('');
     let formCustomerPicId = $state('');
     let formSalesUserId = $state('');
     let formAgenda = $state('');
@@ -108,7 +109,8 @@
         formStartTime = '10:00';
         formVisitType = 'Offline Visit';
         formVisitPurpose = 'Product Introduction / Presentation';
-        formCustomerId = customers.length > 0 ? String(customers[0].id) : '';
+        formCustomerId = '';
+        formCustomerSearch = '';
         formCustomerPicId = '';
         formSalesUserId = salesUsers.length > 0 ? String(salesUsers[0].id) : '';
         formAgenda = '';
@@ -984,16 +986,29 @@
                             <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
                                 <div>
                                     <label for="formCustomerId" class="block font-semibold text-slate-800 mb-1">Customer / Institusi *</label>
-                                    <select
+                                    <input
                                         id="formCustomerId"
-                                        bind:value={formCustomerId}
+                                        type="text"
+                                        bind:value={formCustomerSearch}
+                                        oninput={() => {
+                                            const query = formCustomerSearch.trim().toLocaleLowerCase();
+                                            const match = customers.find(c => c.name.trim().toLocaleLowerCase() === query);
+                                            formCustomerId = match ? String(match.id) : '';
+                                            formCustomerPicId = '';
+                                        }}
+                                        list="customer-institution-options"
+                                        autocomplete="off"
+                                        placeholder="Ketik nama customer atau institusi..."
                                         class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                    >
-                                        <option value="">— Pilih Customer dari Database (1.291) —</option>
+                                    />
+                                    <datalist id="customer-institution-options">
                                         {#each customers as c}
-                                            <option value={c.id}>{c.customer_code ? `[${c.customer_code}] ` : ''}{c.name}</option>
+                                            <option value={c.name} label={c.customer_code || ''}></option>
                                         {/each}
-                                    </select>
+                                    </datalist>
+                                    {#if formCustomerSearch.trim() && !formCustomerId}
+                                        <p class="mt-1 text-[10px] text-amber-600">Pilih nama yang tersedia di daftar agar data customer dan PIC dapat dicocokkan.</p>
+                                    {/if}
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-3">
@@ -1084,17 +1099,21 @@
                                     </div>
 
                                     <div>
-                                        <label for="reviewPrincipal{index}" class="block font-semibold text-slate-700 mb-1">Principal *</label>
-                                        <select
+                                        <label for="reviewPrincipal{index}" class="block font-semibold text-slate-700 mb-1">Institution / Principal *</label>
+                                        <input
                                             id="reviewPrincipal{index}"
+                                            type="text"
                                             bind:value={review.principal_name}
+                                            list="principal-institution-options"
+                                            autocomplete="off"
+                                            placeholder="Ketik nama institution atau principal..."
                                             class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                        >
-                                            <option value="">— Pilih Principal (192 Principal) —</option>
+                                        />
+                                        <datalist id="principal-institution-options">
                                             {#each principals as p}
-                                                <option value={p.name}>{p.name}</option>
+                                                <option value={p.name}></option>
                                             {/each}
-                                        </select>
+                                        </datalist>
                                     </div>
 
                                     <div class="grid grid-cols-2 gap-3">
