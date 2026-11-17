@@ -12,6 +12,7 @@ class Visit extends Model
 
     protected $casts = [
         'visit_date' => 'date:Y-m-d',
+        'support_marketing' => 'array',
         'report_completed_at' => 'datetime',
         'is_archived' => 'boolean',
     ];

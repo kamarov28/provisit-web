@@ -6,22 +6,13 @@
         Plus,
         ChevronLeft,
         ChevronRight,
-        Clock,
-        MapPin,
-        Building2,
-        User as UserIcon,
-        CheckCircle2,
-        X,
-        Search,
-        Filter,
-        Briefcase,
-        ArrowRight,
-        ArrowLeft,
-        Trash2,
-        AlertCircle,
-        FileText
+        Search
     } from '@lucide/svelte';
-    import { router } from '@inertiajs/svelte';
+    import VisitCalendarView from '../../Components/Visits/VisitCalendarView.svelte';
+    import VisitBoardView from '../../Components/Visits/VisitBoardView.svelte';
+    import VisitTableView from '../../Components/Visits/VisitTableView.svelte';
+    import VisitDetailDrawer from '../../Components/Visits/VisitDetailDrawer.svelte';
+    import VisitWizardModal from '../../Components/Visits/VisitWizardModal.svelte';
 
     let {
         visits = [],
@@ -29,415 +20,16 @@
         principals = [],
         customers = [],
         salesUsers = [],
+        supportMarketingUsers = [],
         filters = {}
     } = $props();
 
     let currentView = $state('calendar'); // 'calendar' | 'board' | 'table'
     let selectedVisit = $state(null);
     let isDrawerOpen = $state(false);
-    let isModalOpen = $state(false);
     let searchQuery = $state('');
     let selectedTeam = $state('ALL');
-
-    // ==========================================
-    // 3-STEP WIZARD FORM STATE (100% PERSIS GS)
-    // ==========================================
-    let currentStep = $state(1);
-    let isSubmitting = $state(false);
-    let formError = $state('');
-
-    // Step 1: Info Kunjungan
-    let formTitle = $state('');
-    let formDate = $state(new Date().toISOString().split('T')[0]);
-    let formStartTime = $state('10:00');
-    let formVisitType = $state('Offline Visit');
-    let formVisitPurpose = $state('Product Introduction / Presentation');
-    let formCustomerId = $state('');
-    let formCustomerSearch = $state('');
-    let filteredCustomers = $derived.by(() => {
-        const query = formCustomerSearch.trim().toLocaleLowerCase();
-        if (query.length < 1) return [];
-        return customers
-            .filter(c => c.name.toLocaleLowerCase().includes(query))
-            .slice(0, 8);
-    });
-    let formCustomerPicId = $state('');
-    let formSalesUserId = $state('');
-    let formAgenda = $state('');
-    let formPrevisitNotes = $state('');
-    let formStatus = $state('Planned');
-
-    // Step 2: Principal Reviews
-    let formReviews = $state([
-        { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
-    ]);
-
-    // Step 3: Follow up & Hasil
-    let formPostvisitResult = $state('');
-    let formActionPlans = $state([
-        { task_description: '', owner_user_id: '', due_date: '', priority: 'Normal' }
-    ]);
-
-    const timeOptions = [];
-    for (let h = 0; h < 24; h++) {
-        for (let m of [0, 15, 30, 45]) {
-            timeOptions.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-        }
-    }
-
-    const visitPurposes = [
-        'Product Introduction / Presentation',
-        'Demo / Trial / Evaluation',
-        'Technical Support / Troubleshooting',
-        'Installation / Training',
-        'Follow-up / Relationship',
-        'Commercial / Negotiation'
-    ];
-
-    const exposureTypes = [
-        'Introduction', 'Demo', 'Evaluation', 'Troubleshooting', 'Follow-up', 'Commercial'
-    ];
-
-    const opportunityStatuses = [
-        'No Signal', 'Interested', 'Sample', 'Demo', 'Quotation', 'Negotiation', 'Won', 'Lost'
-    ];
-
-    let availablePics = $derived.by(() => {
-        if (!formCustomerId) return [];
-        const cust = customers.find(c => String(c.id) === String(formCustomerId));
-        return cust && cust.pics ? cust.pics : [];
-    });
-
-    let selectedSalesUser = $derived(
-        salesUsers.find(
-            u => String(u.initial || '').trim().toUpperCase() ===
-                String(customers.find(c => String(c.id) === String(formCustomerId))?.sales_initial || '').trim().toUpperCase()
-        ) || null
-    );
-
-    function openNewVisitModal() {
-        currentStep = 1;
-        formError = '';
-        formTitle = '';
-        formDate = new Date().toISOString().split('T')[0];
-        formStartTime = '10:00';
-        formVisitType = 'Offline Visit';
-        formVisitPurpose = 'Product Introduction / Presentation';
-        formCustomerId = '';
-        formCustomerSearch = '';
-        formCustomerPicId = '';
-        formSalesUserId = '';
-        formAgenda = '';
-        formPrevisitNotes = '';
-        formStatus = 'Planned';
-        formReviews = [
-            { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
-        ];
-        formPostvisitResult = '';
-        formActionPlans = [
-            { task_description: '', owner_user_id: formSalesUserId, due_date: '', priority: 'Normal' }
-        ];
-
-        isModalOpen = true;
-    }
-
-    function closeModal() {
-        isModalOpen = false;
-    }
-
-    function clearCustomerSelection() {
-        const previousSalesUserId = formSalesUserId;
-
-        formCustomerId = '';
-        formCustomerPicId = '';
-        formSalesUserId = '';
-
-        formActionPlans = formActionPlans.map(plan => ({
-            ...plan,
-            owner_user_id:
-                !plan.owner_user_id || String(plan.owner_user_id) === String(previousSalesUserId)
-                    ? ''
-                    : plan.owner_user_id
-        }));
-    }
-
-    function selectCustomer(customer) {
-        const previousSalesUserId = formSalesUserId;
-        const salesInitial = String(customer.sales_initial || '').trim().toUpperCase();
-
-        const matchedSalesUser = salesUsers.find(
-            user => String(user.initial || '').trim().toUpperCase() === salesInitial
-        );
-
-        formCustomerId = String(customer.id);
-        formCustomerSearch = customer.name;
-        formCustomerPicId = '';
-        formSalesUserId = matchedSalesUser ? String(matchedSalesUser.id) : '';
-
-        // Perbarui owner default Action Plan, tetapi pertahankan owner
-        // yang sebelumnya sudah dipilih secara manual.
-        formActionPlans = formActionPlans.map(plan => ({
-            ...plan,
-            owner_user_id:
-                !plan.owner_user_id || String(plan.owner_user_id) === String(previousSalesUserId)
-                    ? formSalesUserId
-                    : plan.owner_user_id
-        }));
-    }
-
-    function clearPrincipalSelection(review) {
-        if (review.productSearchTimer) {
-            clearTimeout(review.productSearchTimer);
-        }
-
-        review.productRequestId = (review.productRequestId || 0) + 1;
-        review.principal_id = '';
-        review.products = [];
-        review.productSearch = '';
-        review.productResults = [];
-        review.productLoading = false;
-        review.productError = '';
-    }
-
-    function selectPrincipal(review, principal) {
-        if (review.productSearchTimer) {
-            clearTimeout(review.productSearchTimer);
-        }
-
-        review.productRequestId = (review.productRequestId || 0) + 1;
-        review.principal_id = String(principal.id);
-        review.principal_name = principal.name;
-        review.products = [];
-        review.productSearch = '';
-        review.productResults = [];
-        review.productLoading = false;
-        review.productError = '';
-    }
-
-    function searchProducts(review) {
-        if (review.productSearchTimer) {
-            clearTimeout(review.productSearchTimer);
-        }
-
-        const query = String(review.productSearch || '').trim();
-
-        review.productResults = [];
-        review.productError = '';
-
-        if (!review.principal_id || query.length < 2) {
-            review.productRequestId = (review.productRequestId || 0) + 1;
-            review.productLoading = false;
-            return;
-        }
-
-        const requestId = (review.productRequestId || 0) + 1;
-        const principalId = String(review.principal_id);
-
-        review.productRequestId = requestId;
-        review.productLoading = true;
-
-        review.productSearchTimer = setTimeout(async () => {
-            try {
-                const params = new URLSearchParams({
-                    principal_id: principalId,
-                    q: query
-                });
-
-                const response = await fetch(`/products/search?${params}`, {
-                    headers: { Accept: 'application/json' }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Pencarian produk gagal.');
-                }
-
-                const results = await response.json();
-
-                if (
-                    review.productRequestId !== requestId ||
-                    String(review.principal_id) !== principalId ||
-                    String(review.productSearch || '').trim() !== query
-                ) {
-                    return;
-                }
-
-                const selectedCatalogues = (review.products || [])
-                    .map(product =>
-                        String(product.catalogue || '').trim().toLowerCase()
-                    );
-
-                review.productResults = results.filter(product =>
-                    !selectedCatalogues.includes(
-                        String(product.catalogue || '').trim().toLowerCase()
-                    )
-                );
-            } catch (error) {
-                if (review.productRequestId === requestId) {
-                    review.productError = error.message || 'Gagal mencari produk.';
-                }
-            } finally {
-                if (review.productRequestId === requestId) {
-                    review.productLoading = false;
-                }
-            }
-        }, 300);
-    }
-
-    function addReviewProduct(review, product) {
-        const catalogue = String(product.catalogue || '').trim().toLowerCase();
-
-        const duplicate = (review.products || []).some(item =>
-            String(item.catalogue || '').trim().toLowerCase() === catalogue
-        );
-
-        if (duplicate) return;
-
-        review.products = [
-            ...(review.products || []),
-            {
-                product_id: String(product.id),
-                catalogue: product.catalogue,
-                description: product.description || product.name || ''
-            }
-        ];
-
-        review.productSearch = '';
-        review.productResults = [];
-        review.productError = '';
-    }
-
-    function removeReviewProduct(review, productId) {
-        review.products = (review.products || []).filter(
-            product => String(product.product_id) !== String(productId)
-        );
-    }
-
-    function setQuickDate(days) {
-        const d = new Date();
-        d.setDate(d.getDate() + days);
-        formDate = d.toISOString().split('T')[0];
-    }
-
-    function addReviewItem() {
-        formReviews = [
-            ...formReviews,
-            { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', products: [] }
-        ];
-    }
-
-    function removeReviewItem(index) {
-        if (formReviews.length > 1) {
-            formReviews = formReviews.filter((_, idx) => idx !== index);
-        }
-    }
-
-    function addActionPlanItem() {
-        formActionPlans = [
-            ...formActionPlans,
-            { task_description: '', owner_user_id: formSalesUserId, due_date: '', priority: 'Normal' }
-        ];
-    }
-
-    function removeActionPlanItem(index) {
-        if (formActionPlans.length > 1) {
-            formActionPlans = formActionPlans.filter((_, idx) => idx !== index);
-        }
-    }
-
-    function validateStep(step) {
-        formError = '';
-        if (step === 1) {
-            if (!formTitle.trim()) {
-                formError = 'Judul kunjungan (Visit Title) wajib diisi.';
-                return false;
-            }
-            if (!formCustomerId) {
-                formError = 'Pilih customer terlebih dahulu.';
-                return false;
-            }
-            if (!formDate || !formStartTime) {
-                formError = 'Tanggal dan jam mulai kunjungan wajib diisi.';
-                return false;
-            }
-        } else if (step === 2) {
-            if (formReviews.length === 0) {
-                formError = 'Minimal 1 Principal Review wajib diisi.';
-                return false;
-            }
-            for (let rev of formReviews) {
-                const selectedPrincipal = principals.some(p =>
-                    String(p.id) === String(rev.principal_id) &&
-                    p.name.trim().toLocaleLowerCase() === rev.principal_name.trim().toLocaleLowerCase()
-                );
-                if (!selectedPrincipal) {
-                    formError = 'Pilih Institution / Principal dari hasil pencarian yang tersedia.';
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    function nextStep() {
-        if (validateStep(currentStep)) {
-            if (currentStep < 3) currentStep++;
-        }
-    }
-
-    function prevStep() {
-        formError = '';
-        if (currentStep > 1) currentStep--;
-    }
-
-    function submitVisit() {
-        if (!validateStep(1) || !validateStep(2)) return;
-
-        if (formStatus === 'Completed') {
-            const validPlans = formActionPlans.filter(p => p.task_description.trim());
-            if (validPlans.length === 0) {
-                currentStep = 3;
-                formError = 'Aturan Perusahaan: Action Plan wajib diisi jika status kunjungan Completed.';
-                return;
-            }
-        }
-
-        isSubmitting = true;
-        formError = '';
-
-        const payload = {
-            title: formTitle,
-            visit_date: formDate,
-            start_time: formStartTime,
-            visit_type: formVisitType,
-            visit_purpose: formVisitPurpose,
-            customer_id: formCustomerId,
-            customer_pic_id: formCustomerPicId || null,
-
-            agenda: formAgenda,
-            previsit_notes: formPrevisitNotes,
-            status: formStatus,
-            postvisit_result: formPostvisitResult,
-            principal_reviews: formReviews.map(r => ({
-                principal_id: r.principal_id || null,
-                principal_name: r.principal_name,
-                exposure_type: r.exposure_type,
-                opportunity_status: r.opportunity_status,
-                products: r.products || []
-            })),
-            action_plans: formActionPlans.filter(p => p.task_description.trim())
-        };
-
-        router.post('/visits', payload, {
-            onSuccess: () => {
-                isSubmitting = false;
-                isModalOpen = false;
-            },
-            onError: (err) => {
-                isSubmitting = false;
-                formError = Object.values(err)[0] || 'Gagal menyimpan kunjungan.';
-            }
-        });
-    }
+    let wizardModal = $state(null);
 
     // Date navigation for Calendar
     let currentDate = $state(new Date());
@@ -462,20 +54,16 @@
         currentDate = new Date();
     }
 
-    // Days grid generator
     let calendarDays = $derived.by(() => {
         const year = currentYear;
         const month = currentMonth;
-        const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 is Sunday
+        const firstDayOfMonth = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-        // Adjust starting day to Monday (0 = Monday, 6 = Sunday)
         const startOffset = (firstDayOfMonth + 6) % 7;
-
         const days = [];
 
-        // Previous month days
         for (let i = startOffset - 1; i >= 0; i--) {
             const dayNum = daysInPrevMonth - i;
             const d = new Date(year, month - 1, dayNum);
@@ -487,10 +75,8 @@
             });
         }
 
-        // Current month days
         const todayStr = new Date().toISOString().split('T')[0];
         for (let i = 1; i <= daysInMonth; i++) {
-            const d = new Date(year, month, i);
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
             days.push({
                 dateString: dateStr,
@@ -500,7 +86,6 @@
             });
         }
 
-        // Next month trailing days to complete 35 or 42 cells
         const remaining = (7 - (days.length % 7)) % 7;
         for (let i = 1; i <= remaining; i++) {
             days.push({
@@ -514,7 +99,6 @@
         return days;
     });
 
-    // Filtered visits
     let filteredVisits = $derived.by(() => {
         return visits.filter(v => {
             const matchSearch = !searchQuery ||
@@ -545,6 +129,11 @@
         }, 200);
     }
 
+    function handleEditVisit(visit) {
+        isDrawerOpen = false;
+        wizardModal?.openEdit(visit);
+    }
+
     function statusColor(status) {
         switch (status) {
             case 'Completed':
@@ -555,7 +144,7 @@
                 return 'bg-amber-50 text-amber-700 border-amber-200';
             case 'Cancelled':
                 return 'bg-rose-50 text-rose-700 border-rose-200';
-            default: // Planned
+            default:
                 return 'bg-slate-100 text-slate-700 border-slate-200';
         }
     }
@@ -624,7 +213,7 @@
             <!-- New Visit Button -->
             <button
                 type="button"
-                onclick={openNewVisitModal}
+                onclick={() => wizardModal?.openNew()}
                 class="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
             >
                 <Plus class="w-3.5 h-3.5" />
@@ -668,7 +257,6 @@
             </div>
 
             {#if currentView === 'calendar'}
-                <!-- Month Navigator -->
                 <div class="flex items-center gap-2">
                     <button
                         type="button"
@@ -702,881 +290,45 @@
             {/if}
         </div>
 
-        <!-- VIEW 1: CALENDAR VIEW -->
         {#if currentView === 'calendar'}
-            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs flex-1 flex flex-col">
-                <!-- Day of week header -->
-                <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-50/75 text-[11px] font-semibold text-slate-500 uppercase tracking-wider py-2 text-center">
-                    <div>Senin</div>
-                    <div>Selasa</div>
-                    <div>Rabu</div>
-                    <div>Kamis</div>
-                    <div>Jumat</div>
-                    <div>Sabtu</div>
-                    <div>Minggu</div>
-                </div>
-
-                <!-- Calendar grid -->
-                <div class="grid grid-cols-7 flex-1 auto-rows-fr divide-x divide-y divide-slate-100">
-                    {#each calendarDays as day}
-                        {@const dayVisits = getVisitsForDate(day.dateString)}
-                        <div class="min-h-28 p-2 flex flex-col gap-1 transition-colors hover:bg-slate-50/50 {day.isCurrentMonth ? 'bg-white' : 'bg-slate-50/40 text-slate-400'}">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="text-xs font-medium {day.isToday ? 'w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-[11px]' : ''}">
-                                    {day.dayNumber}
-                                </span>
-                                {#if dayVisits.length > 0}
-                                    <span class="text-[10px] text-slate-400 font-medium">
-                                        {dayVisits.length} visit
-                                    </span>
-                                {/if}
-                            </div>
-
-                            <!-- Visit Chips -->
-                            <div class="flex flex-col gap-1 overflow-y-auto max-h-24">
-                                {#each dayVisits as visit}
-                                    <button
-                                        type="button"
-                                        onclick={() => openVisitDetail(visit)}
-                                        class="text-left px-2 py-1 rounded text-[11px] font-medium border truncate transition-all hover:scale-[1.02] shadow-2xs {statusColor(visit.status)}"
-                                    >
-                                        <div class="flex items-center gap-1">
-                                            {#if visit.start_time}
-                                                <span class="opacity-75 text-[10px]">{visit.start_time.substring(0, 5)}</span>
-                                            {/if}
-                                            <span class="truncate">{visit.customer_name_snapshot}</span>
-                                        </div>
-                                    </button>
-                                {/each}
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            </div>
+            <VisitCalendarView
+                {calendarDays}
+                {getVisitsForDate}
+                onSelectVisit={openVisitDetail}
+                {statusColor}
+            />
         {/if}
 
-        <!-- VIEW 2: KANBAN BOARD VIEW -->
         {#if currentView === 'board'}
-            <div class="grid grid-cols-4 gap-4 flex-1 items-start">
-                {#each ['Planned', 'Confirmed', 'In Progress', 'Completed'] as columnStatus}
-                    {@const statusVisits = filteredVisits.filter(v => v.status === columnStatus)}
-                    <div class="bg-slate-100/70 rounded-xl p-3 border border-slate-200/80 flex flex-col gap-2.5">
-                        <div class="flex items-center justify-between px-1">
-                            <div class="flex items-center gap-2">
-                                <span class="text-xs font-semibold text-slate-800">{columnStatus}</span>
-                                <span class="text-[11px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
-                                    {statusVisits.length}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="flex flex-col gap-2">
-                            {#each statusVisits as visit}
-                                <div
-                                    role="button"
-                                    tabindex="0"
-                                    onclick={() => openVisitDetail(visit)}
-                                    onkeydown={(e) => e.key === 'Enter' && openVisitDetail(visit)}
-                                    class="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2"
-                                >
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-[10px] font-mono text-slate-400">{visit.visit_code}</span>
-                                        <span class="text-[10px] px-2 py-0.5 rounded font-medium border {statusColor(visit.status)}">
-                                            {visit.status}
-                                        </span>
-                                    </div>
-                                    <h4 class="text-xs font-semibold text-slate-900 leading-snug line-clamp-2">
-                                        {visit.title}
-                                    </h4>
-                                    <div class="flex items-center gap-1.5 text-[11px] text-slate-500">
-                                        <Building2 class="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                                        <span class="truncate">{visit.customer_name_snapshot}</span>
-                                    </div>
-                                    <div class="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
-                                        <span>{visit.visit_date}</span>
-                                        <span>{visit.primary_sales_user?.name || 'Sales'}</span>
-                                    </div>
-                                </div>
-                            {:else}
-                                <div class="p-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                                    Tidak ada visit
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/each}
-            </div>
+            <VisitBoardView
+                visits={filteredVisits}
+                onSelectVisit={openVisitDetail}
+                {statusColor}
+            />
         {/if}
 
-        <!-- VIEW 3: TABLE VIEW -->
         {#if currentView === 'table'}
-            <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
-                            <th class="py-3 px-4">Kode</th>
-                            <th class="py-3 px-4">Tanggal & Jam</th>
-                            <th class="py-3 px-4">Customer</th>
-                            <th class="py-3 px-4">PIC</th>
-                            <th class="py-3 px-4">Agenda / Judul</th>
-                            <th class="py-3 px-4">Sales</th>
-                            <th class="py-3 px-4">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        {#each filteredVisits as visit}
-                            <tr
-                                onclick={() => openVisitDetail(visit)}
-                                class="hover:bg-slate-50/80 cursor-pointer transition-colors"
-                            >
-                                <td class="py-3 px-4 font-mono font-medium text-slate-700">{visit.visit_code}</td>
-                                <td class="py-3 px-4 text-slate-600">
-                                    <div>{visit.visit_date}</div>
-                                    <div class="text-[10px] text-slate-400">{visit.start_time || '-'}</div>
-                                </td>
-                                <td class="py-3 px-4 font-semibold text-slate-900">{visit.customer_name_snapshot}</td>
-                                <td class="py-3 px-4 text-slate-600">
-                                    <div>{visit.pic_name_snapshot || '-'}</div>
-                                    <div class="text-[10px] text-slate-400">{visit.pic_position_snapshot || ''}</div>
-                                </td>
-                                <td class="py-3 px-4 text-slate-700 max-w-xs truncate">{visit.title}</td>
-                                <td class="py-3 px-4 text-slate-600">
-                                    <span class="inline-flex items-center gap-1">
-                                        {visit.primary_sales_user?.name || '-'}
-                                        {#if visit.primary_sales_user?.team}
-                                            <span class="text-[9px] px-1 bg-slate-100 rounded text-slate-500 border border-slate-200">{visit.primary_sales_user.team}</span>
-                                        {/if}
-                                    </span>
-                                </td>
-                                <td class="py-3 px-4">
-                                    <span class="text-[10px] px-2 py-0.5 rounded font-medium border {statusColor(visit.status)}">
-                                        {visit.status}
-                                    </span>
-                                </td>
-                            </tr>
-                        {:else}
-                            <tr>
-                                <td colspan="7" class="py-8 text-center text-slate-400">
-                                    Belum ada data kunjungan yang cocok.
-                                </td>
-                            </tr>
-                        {/each}
-                    </tbody>
-                </table>
-            </div>
+            <VisitTableView
+                visits={filteredVisits}
+                onSelectVisit={openVisitDetail}
+                {statusColor}
+            />
         {/if}
     </main>
 
-    <!-- NOTION-STYLE SIDE-PEEK DRAWER -->
-    {#if isDrawerOpen && selectedVisit}
-        <button
-            type="button"
-            class="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-2xs transition-opacity w-full h-full cursor-default"
-            onclick={closeDrawer}
-            aria-label="Tutup panel"
-        ></button>
+    <VisitDetailDrawer
+        visit={selectedVisit}
+        open={isDrawerOpen}
+        onClose={closeDrawer}
+        onEdit={handleEditVisit}
+        {statusColor}
+    />
 
-        <aside class="fixed top-0 right-0 bottom-0 w-full max-w-xl bg-white z-50 shadow-2xl border-l border-slate-200 flex flex-col transform transition-transform duration-200 ease-out">
-            <!-- Drawer Header -->
-            <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <span class="font-mono text-xs px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-semibold">
-                        {selectedVisit.visit_code}
-                    </span>
-                    <span class="text-xs px-2 py-0.5 rounded font-medium border {statusColor(selectedVisit.status)}">
-                        {selectedVisit.status}
-                    </span>
-                </div>
-                <button
-                    type="button"
-                    onclick={closeDrawer}
-                    class="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                >
-                    <X class="w-4 h-4" />
-                </button>
-            </div>
-
-            <!-- Drawer Body -->
-            <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6">
-                <!-- Title -->
-                <div>
-                    <h2 class="text-xl font-bold text-slate-900 leading-snug">
-                        {selectedVisit.title}
-                    </h2>
-                    <p class="text-xs text-slate-400 mt-1">
-                        Dibuat pada {new Date(selectedVisit.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}
-                    </p>
-                </div>
-
-                <!-- Properties Grid (Notion Style) -->
-                <div class="grid grid-cols-[120px_1fr] gap-y-3.5 gap-x-4 text-xs py-3 border-y border-slate-100">
-                    <span class="text-slate-400 flex items-center gap-1.5"><Building2 class="w-3.5 h-3.5" /> Customer</span>
-                    <span class="font-medium text-slate-900">{selectedVisit.customer_name_snapshot}</span>
-
-                    <span class="text-slate-400 flex items-center gap-1.5"><UserIcon class="w-3.5 h-3.5" /> PIC Pelanggan</span>
-                    <span class="text-slate-700">
-                        {selectedVisit.pic_name_snapshot || '-'}
-                        {#if selectedVisit.pic_position_snapshot}
-                            <span class="text-slate-400">({selectedVisit.pic_position_snapshot})</span>
-                        {/if}
-                    </span>
-
-                    <span class="text-slate-400 flex items-center gap-1.5"><CalendarIcon class="w-3.5 h-3.5" /> Tanggal</span>
-                    <span class="text-slate-700">{selectedVisit.visit_date}</span>
-
-                    <span class="text-slate-400 flex items-center gap-1.5"><Clock class="w-3.5 h-3.5" /> Waktu</span>
-                    <span class="text-slate-700">{selectedVisit.start_time ? selectedVisit.start_time.substring(0, 5) : '-'} WIB</span>
-
-                    <span class="text-slate-400 flex items-center gap-1.5"><Briefcase class="w-3.5 h-3.5" /> Sales PIC</span>
-                    <span class="text-slate-700 font-medium">
-                        {selectedVisit.primary_sales_user?.name || '-'}
-                        {#if selectedVisit.primary_sales_user?.team}
-                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200 ml-1">
-                                Tim {selectedVisit.primary_sales_user.team}
-                            </span>
-                        {/if}
-                    </span>
-
-                    <span class="text-slate-400 flex items-center gap-1.5"><MapPin class="w-3.5 h-3.5" /> Tipe Kunjungan</span>
-                    <span class="text-slate-700">{selectedVisit.visit_type} ({selectedVisit.visit_purpose})</span>
-                </div>
-
-                <!-- Agenda Section -->
-                {#if selectedVisit.agenda}
-                    <div>
-                        <h4 class="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-1.5">Agenda</h4>
-                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
-                            {selectedVisit.agenda}
-                        </div>
-                    </div>
-                {/if}
-
-                <!-- Previsit Notes -->
-                {#if selectedVisit.previsit_notes}
-                    <div>
-                        <h4 class="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-1.5">Pre-visit Notes</h4>
-                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
-                            {selectedVisit.previsit_notes}
-                        </div>
-                    </div>
-                {/if}
-
-                <!-- Principal Reviews -->
-                <div>
-                    <h4 class="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Principal Review & Produk</h4>
-                    {#if selectedVisit.principal_reviews && selectedVisit.principal_reviews.length > 0}
-                        <div class="flex flex-col gap-2">
-                            {#each selectedVisit.principal_reviews as review}
-                                <div class="border border-slate-200 rounded-lg p-3 bg-white">
-                                    <div class="flex items-center justify-between mb-1">
-                                        <span class="font-semibold text-xs text-slate-900">{review.principal_name_snapshot}</span>
-                                        <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">
-                                            {review.exposure_type || 'General'}
-                                        </span>
-                                    </div>
-                                    {#if review.opportunity_status}
-                                        <div class="text-[11px] text-slate-500 mb-2">
-                                            Status: <span class="font-medium text-slate-700">{review.opportunity_status}</span>
-                                        </div>
-                                    {/if}
-
-                                    {#if review.products && review.products.length > 0}
-                                        <div class="flex flex-wrap gap-1.5 mt-2">
-                                            {#each review.products as prod}
-                                                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-50 border border-slate-200 text-slate-700 font-mono">
-                                                    {prod.product_catalogue}: {prod.product_description_snapshot}
-                                                </span>
-                                            {/each}
-                                        </div>
-                                    {/if}
-                                </div>
-                            {/each}
-                        </div>
-                    {:else}
-                        <p class="text-xs text-slate-400 italic">Belum ada review principal yang dicatat.</p>
-                    {/if}
-                </div>
-
-                <!-- Action Plans -->
-                {#if selectedVisit.action_plans && selectedVisit.action_plans.length > 0}
-                    <div>
-                        <h4 class="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2">Action Plan</h4>
-                        <div class="flex flex-col gap-2">
-                            {#each selectedVisit.action_plans as plan}
-                                <div class="flex items-start gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                                    <CheckCircle2 class="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                                    <div class="flex-1">
-                                        <p class="text-slate-800 font-medium">{plan.task_description}</p>
-                                        <div class="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
-                                            <span>Deadline: {plan.due_date || '-'}</span>
-                                            <span>Prioritas: {plan.priority}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    </div>
-                {/if}
-            </div>
-
-            <!-- Drawer Footer -->
-            <div class="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
-                <button
-                    type="button"
-                    onclick={closeDrawer}
-                    class="px-3.5 py-1.5 text-xs font-medium border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-slate-700 transition-colors"
-                >
-                    Tutup
-                </button>
-            </div>
-        </aside>
-    {/if}
-
-    <!-- 3-STEP WIZARD MODAL (100% PERSIS GS APPS SCRIPT) -->
-    {#if isModalOpen}
-        <button
-            type="button"
-            class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-2xs transition-opacity w-full h-full cursor-default"
-            onclick={closeModal}
-            aria-label="Tutup form"
-        ></button>
-
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col pointer-events-auto overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                <!-- Modal Header -->
-                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                    <div>
-                        <h3 class="text-base font-bold text-slate-900">Catat Kunjungan Baru</h3>
-                        <p class="text-xs text-slate-400">Ikuti 3 tahapan pengisian formulir kunjungan</p>
-                    </div>
-                    <button
-                        type="button"
-                        onclick={closeModal}
-                        class="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                    >
-                        <X class="w-4 h-4" />
-                    </button>
-                </div>
-
-                <!-- 3 Steps Tabs (Persis Tab Selection GS) -->
-                <div class="grid grid-cols-3 border-b border-slate-100 bg-slate-50/60 text-xs font-medium">
-                    <button
-                        type="button"
-                        onclick={() => currentStep = 1}
-                        class="py-3 px-4 border-b-2 flex items-center justify-center gap-2 transition-all {currentStep === 1 ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
-                    >
-                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] {currentStep === 1 ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'}">1</span>
-                        <span>Info Kunjungan</span>
-                    </button>
-                    <button
-                        type="button"
-                        onclick={() => { if (validateStep(1)) currentStep = 2; }}
-                        class="py-3 px-4 border-b-2 flex items-center justify-center gap-2 transition-all {currentStep === 2 ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
-                    >
-                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] {currentStep === 2 ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'}">2</span>
-                        <span>Principal & Produk</span>
-                    </button>
-                    <button
-                        type="button"
-                        onclick={() => { if (validateStep(1) && validateStep(2)) currentStep = 3; }}
-                        class="py-3 px-4 border-b-2 flex items-center justify-center gap-2 transition-all {currentStep === 3 ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
-                    >
-                        <span class="w-5 h-5 rounded-full flex items-center justify-center text-[10px] {currentStep === 3 ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-600'}">3</span>
-                        <span>Follow-up & Hasil</span>
-                    </button>
-                </div>
-
-                <!-- Form Error Notice -->
-                {#if formError}
-                    <div class="mx-6 mt-4 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                        <AlertCircle class="w-4 h-4 shrink-0" />
-                        <span>{formError}</span>
-                    </div>
-                {/if}
-
-                <!-- Modal Body -->
-                <div class="flex-1 overflow-y-auto p-6">
-                    <!-- STEP 1: INFO KUNJUNGAN -->
-                    {#if currentStep === 1}
-                        <div class="flex flex-col gap-4 text-xs">
-                            <div>
-                                <label for="formTitle" class="block font-semibold text-slate-700 mb-1">Judul Kunjungan (Visit Title) *</label>
-                                <input
-                                    id="formTitle"
-                                    type="text"
-                                    bind:value={formTitle}
-                                    placeholder="Contoh: Demo MICA Advance - Kalbe Farma"
-                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
-                                />
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label for="formDate" class="block font-semibold text-slate-700 mb-1">Tanggal Kunjungan *</label>
-                                    <input
-                                        id="formDate"
-                                        type="date"
-                                        bind:value={formDate}
-                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
-                                    />
-                                    <div class="flex items-center gap-1.5 mt-1.5">
-                                        <button type="button" onclick={() => setQuickDate(0)} class="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600">Hari Ini</button>
-                                        <button type="button" onclick={() => setQuickDate(1)} class="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600">Besok</button>
-                                        <button type="button" onclick={() => setQuickDate(7)} class="px-2 py-0.5 rounded text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600">+7 Hari</button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label for="formStartTime" class="block font-semibold text-slate-700 mb-1">Waktu Mulai *</label>
-                                    <select
-                                        id="formStartTime"
-                                        bind:value={formStartTime}
-                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                    >
-                                        {#each timeOptions as t}
-                                            <option value={t}>{t}</option>
-                                        {/each}
-                                    </select>
-                                    <span class="text-[10px] text-slate-400 mt-1 block">Interval setiap 15 menit</span>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label for="formVisitType" class="block font-semibold text-slate-700 mb-1">Tipe Kunjungan *</label>
-                                    <select
-                                        id="formVisitType"
-                                        bind:value={formVisitType}
-                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                    >
-                                        <option value="Offline Visit">Offline Visit</option>
-                                        <option value="Online Visit">Online Visit</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label for="formVisitPurpose" class="block font-semibold text-slate-700 mb-1">Tujuan Kunjungan</label>
-                                    <select
-                                        id="formVisitPurpose"
-                                        bind:value={formVisitPurpose}
-                                        class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                    >
-                                        {#each visitPurposes as p}
-                                            <option value={p}>{p}</option>
-                                        {/each}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
-                                <div>
-                                    <label for="formCustomerId" class="block font-semibold text-slate-800 mb-1">Customer / Institusi *</label>
-                                    <div class="relative">
-                                        <input
-                                            id="formCustomerId"
-                                            type="text"
-                                            bind:value={formCustomerSearch}
-                                            oninput={clearCustomerSelection}
-                                            autocomplete="off"
-                                            placeholder="Ketik nama customer atau institusi..."
-                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                        />
-                                        {#if formCustomerSearch.trim() && !formCustomerId}
-                                            <div class="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                                                {#if filteredCustomers.length > 0}
-                                                    {#each filteredCustomers as c}
-                                                        <button
-                                                            type="button"
-                                                            onclick={() => selectCustomer(c)}
-                                                            class="w-full px-3 py-2 text-left hover:bg-slate-50 border-b border-slate-100 last:border-0"
-                                                        >
-                                                            <span class="block text-xs font-medium text-slate-800">{c.name}</span>
-                                                            {#if c.customer_code}
-                                                                <span class="block mt-0.5 text-[10px] text-slate-400">{c.customer_code}</span>
-                                                            {/if}
-                                                        </button>
-                                                    {/each}
-                                                {:else}
-                                                    <p class="px-3 py-3 text-xs text-slate-500">Tidak ada customer yang cocok.</p>
-                                                {/if}
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label for="formCustomerPicId" class="block font-semibold text-slate-700 mb-1">PIC Customer</label>
-                                        <select
-                                            id="formCustomerPicId"
-                                            bind:value={formCustomerPicId}
-                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                        >
-                                            <option value="">— Bebas / Belum Ditentukan —</option>
-                                            {#each availablePics as pic}
-                                                <option value={pic.id}>{pic.name} {pic.position ? `(${pic.position})` : ''}</option>
-                                            {/each}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label for="formSalesUserId" class="block font-semibold text-slate-700 mb-1">PIC Sales Penanggung Jawab</label>
-                                        <input
-                                            id="formSalesUserId"
-                                            type="text"
-                                            value={selectedSalesUser ? `${selectedSalesUser.name} (${selectedSalesUser.initial})` : formCustomerId ? 'PIC Sales belum terdaftar' : 'Otomatis dari Customer Master'}
-                                            readonly
-                                            class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-600 cursor-not-allowed"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label for="formAgenda" class="block font-semibold text-slate-700 mb-1">Agenda Pertemuan</label>
-                                <textarea
-                                    id="formAgenda"
-                                    bind:value={formAgenda}
-                                    rows="2"
-                                    placeholder="Rincian topik atau tujuan agenda yang akan dibahas..."
-                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
-                                ></textarea>
-                            </div>
-
-                            <div>
-                                <label for="formPrevisitNotes" class="block font-semibold text-slate-700 mb-1">Pre-visit Notes</label>
-                                <textarea
-                                    id="formPrevisitNotes"
-                                    bind:value={formPrevisitNotes}
-                                    rows="2"
-                                    placeholder="Persiapan dokumen, sertifikat analisa, atau sampel produk..."
-                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
-                                ></textarea>
-                            </div>
-
-                            <div>
-                                <label for="formStatus" class="block font-semibold text-slate-700 mb-1">Status Kunjungan *</label>
-                                <select
-                                    id="formStatus"
-                                    bind:value={formStatus}
-                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white font-semibold"
-                                >
-                                    <option value="Draft">Draft</option>
-                                    <option value="Planned">Planned (Terencana)</option>
-                                    <option value="Confirmed">Confirmed (Terkonfirmasi)</option>
-                                    <option value="Completed">Completed (Kunjungan Selesai)</option>
-                                    <option value="Cancelled">Cancelled (Dibatalkan)</option>
-                                </select>
-
-                                {#if formStatus === 'Completed'}
-                                    <span class="text-[11px] text-amber-600 font-medium mt-1 block">
-                                        Status Completed mewajibkan Post-visit Result dan Action Plan.
-                                    </span>
-                                {/if}
-                            </div>
-                        </div>
-                    {/if}
-
-                    <!-- STEP 2: PRINCIPAL & PRODUK -->
-                    {#if currentStep === 2}
-                        <div class="flex flex-col gap-4 text-xs">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <span class="font-semibold text-slate-800 text-sm">Principal Review</span>
-                                    <p class="text-[11px] text-slate-400">Minimal satu principal wajib dicatat pada kunjungan ini</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onclick={addReviewItem}
-                                    class="flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 border border-slate-200 px-2.5 py-1.5 rounded-lg bg-white shadow-2xs hover:bg-slate-50"
-                                >
-                                    <Plus class="w-3.5 h-3.5" />
-                                    <span>Tambah Principal</span>
-                                </button>
-                            </div>
-
-                            {#each formReviews as review, index}
-                                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 flex flex-col gap-3">
-                                    <div class="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                                        <span class="font-bold text-slate-800 text-xs">Review #{index + 1}</span>
-                                        {#if formReviews.length > 1}
-                                            <button
-                                                type="button"
-                                                onclick={() => removeReviewItem(index)}
-                                                class="text-rose-500 hover:text-rose-700 p-1 transition-colors"
-                                            >
-                                                <Trash2 class="w-3.5 h-3.5" />
-                                            </button>
-                                        {/if}
-                                    </div>
-
-                                    <div>
-                                        <label for="reviewPrincipal{index}" class="block font-semibold text-slate-700 mb-1">Institution / Principal *</label>
-                                        <div class="relative">
-                                            <input
-                                                id="reviewPrincipal{index}"
-                                                type="text"
-                                                bind:value={review.principal_name}
-                                                oninput={() => clearPrincipalSelection(review)}
-                                                autocomplete="off"
-                                                placeholder="Ketik nama institution atau principal..."
-                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                            />
-                                            {#if review.principal_name.trim() && !principals.some(p => p.name.trim().toLocaleLowerCase() === review.principal_name.trim().toLocaleLowerCase() && String(p.id) === String(review.principal_id))}
-                                                <div class="absolute z-30 mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                                                    {#each principals.filter(p => p.name.toLocaleLowerCase().includes(review.principal_name.trim().toLocaleLowerCase())).slice(0, 8) as p}
-                                                        <button
-                                                            type="button"
-                                                            onclick={() => selectPrincipal(review, p)}
-                                                            class="w-full px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-50 border-b border-slate-100 last:border-0"
-                                                        >
-                                                            {p.name}
-                                                        </button>
-                                                    {/each}
-                                                    {#if !principals.some(p => p.name.toLocaleLowerCase().includes(review.principal_name.trim().toLocaleLowerCase()))}
-                                                        <p class="px-3 py-3 text-xs text-slate-500">Tidak ada institution / principal yang cocok.</p>
-                                                    {/if}
-                                                </div>
-                                            {/if}
-                                        </div>
-                                    </div>
-
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label for="reviewExposure{index}" class="block font-semibold text-slate-700 mb-1">Exposure Type</label>
-                                            <select
-                                                id="reviewExposure{index}"
-                                                bind:value={review.exposure_type}
-                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                            >
-                                                {#each exposureTypes as exp}
-                                                    <option value={exp}>{exp}</option>
-                                                {/each}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label for="reviewOpportunity{index}" class="block font-semibold text-slate-700 mb-1">Opportunity Status</label>
-                                            <select
-                                                id="reviewOpportunity{index}"
-                                                bind:value={review.opportunity_status}
-                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                            >
-                                                {#each opportunityStatuses as opp}
-                                                    <option value={opp}>{opp}</option>
-                                                {/each}
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <div class="border-t border-slate-200 pt-3 flex flex-col gap-2">
-                                        <div>
-                                            <label for="productSearch{index}" class="block font-semibold text-slate-700 mb-1">Produk Principal</label>
-
-                                            {#if review.principal_id}
-                                                <input
-                                                    id="productSearch{index}"
-                                                    type="text"
-                                                    bind:value={review.productSearch}
-                                                    oninput={() => searchProducts(review)}
-                                                    autocomplete="off"
-                                                    placeholder="Cari Catalogue atau Description (min. 2 karakter)..."
-                                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                                />
-
-                                                {#if review.productLoading}
-                                                    <p class="text-[10px] text-slate-400 mt-1">Mencari produk...</p>
-                                                {:else if review.productError}
-                                                    <p class="text-[10px] text-rose-600 mt-1">{review.productError}</p>
-                                                {:else if (review.productSearch || '').trim().length >= 2 && review.productResults?.length > 0}
-                                                    <div class="mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white">
-                                                        {#each review.productResults as product}
-                                                            <button
-                                                                type="button"
-                                                                onclick={() => addReviewProduct(review, product)}
-                                                                class="w-full px-3 py-2 text-left border-b border-slate-100 last:border-0 hover:bg-slate-50"
-                                                            >
-                                                                <span class="block font-semibold text-slate-800">{product.catalogue}</span>
-                                                                <span class="block text-[10px] text-slate-500">{product.description || product.name}</span>
-                                                            </button>
-                                                        {/each}
-                                                    </div>
-                                                {:else if (review.productSearch || '').trim().length >= 2}
-                                                    <p class="text-[10px] text-slate-400 mt-1">Tidak ada produk yang cocok atau semua hasil sudah dipilih.</p>
-                                                {/if}
-                                            {:else}
-                                                <p class="text-[10px] text-slate-400">Pilih Principal terlebih dahulu untuk mencari produk.</p>
-                                            {/if}
-                                        </div>
-
-                                        {#if review.products?.length > 0}
-                                            <div class="flex flex-col gap-1.5">
-                                                <span class="text-[10px] font-semibold text-slate-500">Produk dipilih ({review.products.length})</span>
-
-                                                {#each review.products as product}
-                                                    <div class="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                                        <div class="min-w-0">
-                                                            <span class="block text-xs font-semibold text-slate-800">{product.catalogue}</span>
-                                                            <span class="block text-[10px] text-slate-500">{product.description}</span>
-                                                        </div>
-
-                                                        <button
-                                                            type="button"
-                                                            onclick={() => removeReviewProduct(review, product.product_id)}
-                                                            class="shrink-0 text-rose-500 hover:text-rose-700"
-                                                            aria-label="Hapus produk"
-                                                        >
-                                                            <X class="w-3.5 h-3.5" />
-                                                        </button>
-                                                    </div>
-                                                {/each}
-                                            </div>
-                                        {/if}
-                                    </div>
-                                </div>
-                            {/each}
-                        </div>
-                    {/if}
-
-                    <!-- STEP 3: FOLLOW UP & HASIL -->
-                    {#if currentStep === 3}
-                        <div class="flex flex-col gap-4 text-xs">
-
-                            <div>
-                                <label for="formPostvisitResult" class="block font-semibold text-slate-700 mb-1">Post-visit Result (Ringkasan Hasil Pertemuan)</label>
-                                <textarea
-                                    id="formPostvisitResult"
-                                    bind:value={formPostvisitResult}
-                                    rows="3"
-                                    placeholder="Tuliskan poin penting hasil meeting atau temuan aktual di lapangan..."
-                                    class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400"
-                                ></textarea>
-                            </div>
-
-                            <div class="border-t border-slate-100 pt-4 flex flex-col gap-3">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <span class="font-semibold text-slate-800 text-sm">Action Plan</span>
-                                        <p class="text-[11px] text-slate-400">Rencana tindak lanjut dan penugasan PIC</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onclick={addActionPlanItem}
-                                        class="flex items-center gap-1 text-xs font-medium text-slate-700 hover:text-slate-900 border border-slate-200 px-2.5 py-1.5 rounded-lg bg-white shadow-2xs hover:bg-slate-50"
-                                    >
-                                        <Plus class="w-3.5 h-3.5" />
-                                        <span>Tambah Action Plan</span>
-                                    </button>
-                                </div>
-
-                                {#each formActionPlans as plan, index}
-                                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-2.5">
-                                        <div class="flex items-center justify-between">
-                                            <span class="font-semibold text-slate-700 text-xs">Tugas #{index + 1}</span>
-                                            {#if formActionPlans.length > 1}
-                                                <button
-                                                    type="button"
-                                                    onclick={() => removeActionPlanItem(index)}
-                                                    class="text-rose-500 hover:text-rose-700 p-1"
-                                                >
-                                                    <Trash2 class="w-3.5 h-3.5" />
-                                                </button>
-                                            {/if}
-                                        </div>
-                                        <div>
-                                            <label for="planTask{index}" class="block font-semibold text-slate-700 mb-1">Deskripsi Tugas</label>
-                                            <input
-                                                id="planTask{index}"
-                                                type="text"
-                                                bind:value={plan.task_description}
-                                                placeholder="Contoh: Kirim penawaran resmi (RFQ) dan brosur MICA"
-                                                class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                            />
-                                        </div>
-                                        <div class="grid grid-cols-3 gap-2">
-                                            <div>
-                                                <label for="planOwner{index}" class="block font-semibold text-slate-700 mb-1">Owner</label>
-                                                <select
-                                                    id="planOwner{index}"
-                                                    bind:value={plan.owner_user_id}
-                                                    class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                                >
-                                                    {#each salesUsers as u}
-                                                        <option value={u.id}>{u.name}</option>
-                                                    {/each}
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label for="planDueDate{index}" class="block font-semibold text-slate-700 mb-1">Due Date</label>
-                                                <input
-                                                    id="planDueDate{index}"
-                                                    type="date"
-                                                    bind:value={plan.due_date}
-                                                    class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label for="planPriority{index}" class="block font-semibold text-slate-700 mb-1">Prioritas</label>
-                                                <select
-                                                    id="planPriority{index}"
-                                                    bind:value={plan.priority}
-                                                    class="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
-                                                >
-                                                    <option>Low</option>
-                                                    <option>Normal</option>
-                                                    <option>High</option>
-                                                    <option>Critical</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-                                {/each}
-                            </div>
-                        </div>
-                    {/if}
-                </div>
-
-                <!-- Modal Stepper Footer -->
-                <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between">
-                    <div>
-                        <span class="text-xs text-slate-500 font-medium">Langkah {currentStep} dari 3</span>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        {#if currentStep > 1}
-                            <button
-                                type="button"
-                                onclick={prevStep}
-                                class="flex items-center gap-1.5 px-3 py-2 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-700 transition-colors"
-                            >
-                                <ArrowLeft class="w-3.5 h-3.5" />
-                                <span>Kembali</span>
-                            </button>
-                        {/if}
-
-                        {#if currentStep < 3}
-                            <button
-                                type="button"
-                                onclick={nextStep}
-                                class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors cursor-pointer"
-                            >
-                                <span>Lanjut ke Langkah {currentStep + 1}</span>
-                                <ArrowRight class="w-3.5 h-3.5" />
-                            </button>
-                        {:else}
-                            <button
-                                type="button"
-                                onclick={submitVisit}
-                                disabled={isSubmitting}
-                                class="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer shadow-xs"
-                            >
-                                <CheckCircle2 class="w-3.5 h-3.5" />
-                                <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Kunjungan'}</span>
-                            </button>
-                        {/if}
-                    </div>
-                </div>
-            </div>
-        </div>
-    {/if}
+    <VisitWizardModal
+        bind:this={wizardModal}
+        {principals}
+        {customers}
+        {salesUsers}
+        {supportMarketingUsers}
+    />
 </div>
