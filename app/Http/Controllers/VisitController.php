@@ -338,24 +338,31 @@ class VisitController extends Controller
     {
         if (in_array($visit->status, ['Completed', 'Cancelled'], true)) {
             return back()->withErrors([
-                'visit_date' => "Visit dengan status {$visit->status} tidak dapat dijadwalkan ulang lewat kalender.",
+                'visit_date' => "Visit dengan status {$visit->status} tidak dapat dijadwalkan ulang.",
             ]);
         }
 
         $validated = $request->validate([
             'visit_date' => 'required|date',
+            'start_time' => 'nullable|string|max:8',
         ]);
 
         $oldDate = $visit->visit_date ? $visit->visit_date->format('Y-m-d') : null;
         $newDate = date('Y-m-d', strtotime($validated['visit_date']));
 
-        if ($oldDate === $newDate) {
+        $oldTime = $visit->start_time ? substr((string) $visit->start_time, 0, 5) : null;
+        $newTime = array_key_exists('start_time', $validated) && $validated['start_time'] !== null
+            ? substr(trim((string) $validated['start_time']), 0, 5)
+            : $oldTime;
+
+        if ($oldDate === $newDate && $oldTime === $newTime) {
             return redirect()->route('visits.index');
         }
 
-        DB::transaction(function () use ($request, $visit, $oldDate, $newDate) {
+        DB::transaction(function () use ($request, $visit, $oldDate, $newDate, $oldTime, $newTime) {
             $visit->update([
                 'visit_date' => $newDate,
+                'start_time' => $newTime,
                 'updated_by' => $request->user()?->id,
             ]);
 
@@ -366,15 +373,15 @@ class VisitController extends Controller
                 'action' => 'RESCHEDULE',
                 'auditable_type' => Visit::class,
                 'auditable_id' => $visit->id,
-                'old_values' => ['visit_date' => $oldDate],
-                'new_values' => ['visit_date' => $newDate],
+                'old_values' => ['visit_date' => $oldDate, 'start_time' => $oldTime],
+                'new_values' => ['visit_date' => $newDate, 'start_time' => $newTime],
                 'ip_address' => $request->ip(),
             ]);
         });
 
         return redirect()
             ->route('visits.index')
-            ->with('success', "Jadwal {$visit->visit_code} dipindahkan ke {$newDate}.");
+            ->with('success', "Jadwal {$visit->visit_code} diperbarui ke {$newDate}" . ($newTime ? " ({$newTime})" : '') . '.');
     }
 
     public function updateStatus(Request $request, Visit $visit)

@@ -2,8 +2,23 @@
     let {
         visits = [],
         onSelectVisit,
+        onRescheduleVisit,
+        onStatusChange,
         statusColor
     } = $props();
+
+    const statuses = ['Draft', 'Planned', 'Confirmed', 'Completed', 'Cancelled'];
+
+    const timeOptions = [];
+    for (let h = 0; h < 24; h++) {
+        for (let m of [0, 15, 30, 45]) {
+            timeOptions.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+        }
+    }
+
+    function isScheduleLocked(visit) {
+        return ['Completed', 'Cancelled'].includes(visit.status);
+    }
 </script>
 
 <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
@@ -21,22 +36,60 @@
         </thead>
         <tbody class="divide-y divide-slate-100">
             {#each visits as visit}
+                {@const locked = isScheduleLocked(visit)}
+                {@const currentStartTime = visit.start_time ? String(visit.start_time).substring(0, 5) : '10:00'}
                 <tr
                     onclick={() => onSelectVisit(visit)}
                     class="hover:bg-slate-50/80 cursor-pointer transition-colors"
                 >
-                    <td class="py-3 px-4 font-mono font-medium text-slate-700">{visit.visit_code}</td>
-                    <td class="py-3 px-4 text-slate-600">
-                        <div>{visit.visit_date}</div>
-                        <div class="text-[10px] text-slate-400">{visit.start_time || '-'}</div>
+                    <td class="py-3 px-4 font-mono font-medium text-slate-700 whitespace-nowrap">{visit.visit_code}</td>
+
+                    <!-- Inline Quick-Edit Tanggal & Jam -->
+                    <td class="py-2.5 px-4 text-slate-600" onclick={(e) => e.stopPropagation()}>
+                        {#if locked}
+                            <div class="text-xs text-slate-700">{visit.visit_date}</div>
+                            <div class="text-[10px] text-slate-400">{currentStartTime} WIB</div>
+                        {:else}
+                            <div class="flex items-center gap-1.5">
+                                <input
+                                    type="date"
+                                    value={visit.visit_date}
+                                    onchange={(e) => {
+                                        const val = e.currentTarget.value;
+                                        if (val && val !== visit.visit_date) {
+                                            onRescheduleVisit?.(visit, val, currentStartTime);
+                                        }
+                                    }}
+                                    class="px-1.5 py-1 border border-transparent hover:border-slate-200 focus:border-slate-400 rounded bg-transparent hover:bg-white text-[11px] text-slate-700 outline-none cursor-pointer transition-colors"
+                                />
+                                <select
+                                    value={currentStartTime}
+                                    onchange={(e) => {
+                                        const val = e.currentTarget.value;
+                                        if (val && val !== currentStartTime) {
+                                            onRescheduleVisit?.(visit, visit.visit_date, val);
+                                        }
+                                    }}
+                                    class="px-1 py-1 border border-transparent hover:border-slate-200 focus:border-slate-400 rounded bg-transparent hover:bg-white text-[11px] text-slate-500 outline-none cursor-pointer transition-colors"
+                                >
+                                    {#if !timeOptions.includes(currentStartTime)}
+                                        <option value={currentStartTime}>{currentStartTime}</option>
+                                    {/if}
+                                    {#each timeOptions as t}
+                                        <option value={t}>{t}</option>
+                                    {/each}
+                                </select>
+                            </div>
+                        {/if}
                     </td>
+
                     <td class="py-3 px-4 font-semibold text-slate-900">{visit.customer_name_snapshot}</td>
                     <td class="py-3 px-4 text-slate-600">
                         <div>{visit.pic_name_snapshot || '-'}</div>
                         <div class="text-[10px] text-slate-400">{visit.pic_position_snapshot || ''}</div>
                     </td>
                     <td class="py-3 px-4 text-slate-700 max-w-xs truncate">{visit.title}</td>
-                    <td class="py-3 px-4 text-slate-600">
+                    <td class="py-3 px-4 text-slate-600 whitespace-nowrap">
                         <span class="inline-flex items-center gap-1">
                             {visit.primary_sales_user?.name || '-'}
                             {#if visit.primary_sales_user?.team}
@@ -44,10 +97,24 @@
                             {/if}
                         </span>
                     </td>
-                    <td class="py-3 px-4">
-                        <span class="text-[10px] px-2 py-0.5 rounded font-medium border {statusColor(visit.status)}">
-                            {visit.status}
-                        </span>
+
+                    <!-- Inline Quick-Edit Status -->
+                    <td class="py-2.5 px-4" onclick={(e) => e.stopPropagation()}>
+                        <select
+                            value={visit.status}
+                            onchange={(e) => {
+                                const nextVal = e.currentTarget.value;
+                                if (nextVal && nextVal !== visit.status) {
+                                    onStatusChange?.(visit, nextVal);
+                                    e.currentTarget.value = visit.status;
+                                }
+                            }}
+                            class="text-[11px] px-2 py-1 rounded-md font-medium border outline-none cursor-pointer transition-colors {statusColor(visit.status)}"
+                        >
+                            {#each statuses as st}
+                                <option value={st} class="bg-white text-slate-800">{st}</option>
+                            {/each}
+                        </select>
                     </td>
                 </tr>
             {:else}

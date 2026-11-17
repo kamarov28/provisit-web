@@ -3,6 +3,7 @@
         Calendar as CalendarIcon,
         LayoutGrid,
         Table as TableIcon,
+        BarChart3,
         Plus,
         ChevronLeft,
         ChevronRight,
@@ -15,6 +16,7 @@
     import VisitCalendarView from '../../Components/Visits/VisitCalendarView.svelte';
     import VisitBoardView from '../../Components/Visits/VisitBoardView.svelte';
     import VisitTableView from '../../Components/Visits/VisitTableView.svelte';
+    import VisitAnalyticsView from '../../Components/Visits/VisitAnalyticsView.svelte';
     import VisitDetailDrawer from '../../Components/Visits/VisitDetailDrawer.svelte';
     import VisitWizardModal from '../../Components/Visits/VisitWizardModal.svelte';
 
@@ -183,9 +185,9 @@
             const start = new Date(calendarDays[0].dateString + 'T00:00:00');
             const end = new Date(calendarDays[6].dateString + 'T00:00:00');
             if (start.getMonth() === end.getMonth()) {
-                return `${start.getDate()} – ${end.getDate()} ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
+                return `${start.getDate()} â€“ ${end.getDate()} ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
             }
-            return `${start.getDate()} ${monthNames[start.getMonth()].slice(0, 3)} – ${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
+            return `${start.getDate()} ${monthNames[start.getMonth()].slice(0, 3)} â€“ ${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
         }
         return `${monthNames[currentMonth]} ${currentYear}`;
     });
@@ -309,10 +311,12 @@
         wizardModal?.openNew(dateStr);
     }
 
-    function handleRescheduleVisit(visit, newDate) {
-        router.patch(`/visits/${visit.id}/reschedule`, {
-            visit_date: newDate
-        }, {
+    function handleRescheduleVisit(visit, newDate, newStartTime = null) {
+        const payload = { visit_date: newDate };
+        if (newStartTime !== null) {
+            payload.start_time = newStartTime;
+        }
+        router.patch(`/visits/${visit.id}/reschedule`, payload, {
             preserveScroll: true
         });
     }
@@ -398,6 +402,14 @@
                 >
                     <TableIcon class="w-3.5 h-3.5" />
                     <span>Tabel</span>
+                </button>
+                <button
+                    type="button"
+                    onclick={() => currentView = 'analytics'}
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all {currentView === 'analytics' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                >
+                    <BarChart3 class="w-3.5 h-3.5" />
+                    <span>Analitik</span>
                 </button>
             </div>
 
@@ -632,7 +644,7 @@
                         >
                             <option value="">Semua Sales</option>
                             {#each salesUsers as u}
-                                <option value={String(u.id)}>{u.initial ? `${u.initial} — ${u.name}` : u.name}</option>
+                                <option value={String(u.id)}>{u.initial ? `${u.initial} â€” ${u.name}` : u.name}</option>
                             {/each}
                         </select>
                     </div>
@@ -648,7 +660,7 @@
                             <option value="NONE">None (Tanpa Support)</option>
                             {#each supportMarketingUsers as sup}
                                 {@const code = String(sup.initial || '').trim().toUpperCase()}
-                                <option value={code}>{code} — {sup.name}</option>
+                                <option value={code}>{code} â€” {sup.name}</option>
                             {/each}
                         </select>
                     </div>
@@ -714,7 +726,15 @@
             <VisitTableView
                 visits={filteredVisits}
                 onSelectVisit={openVisitDetail}
+                onRescheduleVisit={handleRescheduleVisit}
+                onStatusChange={handleBoardStatusChange}
                 {statusColor}
+            />
+        {/if}
+
+        {#if currentView === 'analytics'}
+            <VisitAnalyticsView
+                visits={filteredVisits}
             />
         {/if}
     </main>
