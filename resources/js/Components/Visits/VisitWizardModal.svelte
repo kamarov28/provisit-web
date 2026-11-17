@@ -94,12 +94,12 @@
         ) || null
     );
 
-    export function openNew() {
+    export function openNew(initialDate = null) {
         editingVisit = null;
         currentStep = 1;
         formError = '';
         formTitle = '';
-        formDate = new Date().toISOString().split('T')[0];
+        formDate = initialDate || new Date().toISOString().split('T')[0];
         formStartTime = '10:00';
         formVisitType = 'Offline Visit';
         formVisitPurpose = 'Product Introduction / Presentation';
@@ -122,12 +122,12 @@
         isModalOpen = true;
     }
 
-    export function openEdit(visit) {
+    export function openEdit(visit, options = {}) {
         if (!visit) return;
 
         editingVisit = visit;
-        currentStep = 1;
-        formError = '';
+        currentStep = options.step || 1;
+        formError = options.notice || '';
 
         formTitle = visit.title || '';
         formDate = visit.visit_date ? String(visit.visit_date).substring(0, 10) : new Date().toISOString().split('T')[0];
@@ -145,7 +145,7 @@
 
         formAgenda = visit.agenda || '';
         formPrevisitNotes = visit.previsit_notes || '';
-        formStatus = visit.status || 'Planned';
+        formStatus = options.forceStatus || visit.status || 'Planned';
 
         if (visit.principal_reviews && visit.principal_reviews.length > 0) {
             formReviews = visit.principal_reviews.map(rev => ({

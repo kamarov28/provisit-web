@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\CustomerPic;
 use App\Models\Principal;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Visit;
+use App\Services\CalendarSyncService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
@@ -17,14 +19,19 @@ use Illuminate\Validation\ValidationException;
 
 class VisitController extends Controller
 {
+    public function __construct(
+        private readonly CalendarSyncService $calendarSync
+    ) {}
+
     public function index(Request $request)
     {
         $query = Visit::with([
             'customer:id,name,customer_code,city,sector',
             'customerPic:id,name,position,phone',
-            'primarySalesUser:id,name,email,team',
+            'primarySalesUser:id,name,email,team,initial',
             'principalReviews.products',
             'actionPlans.owner:id,name',
+            'auditLogs.user:id,name,initial',
         ])
         ->where('is_archived', false)
         ->orderBy('visit_date', 'desc')
@@ -90,6 +97,32 @@ class VisitController extends Controller
         ]);
     }
 
+    public function calendarIcs()
+    {
+        $visits = Visit::with(['primarySalesUser:id,name', 'principalReviews'])
+            ->where('is_archived', false)
+            ->where('status', '!=', 'Cancelled')
+            ->orderBy('visit_date', 'asc')
+            ->get();
+
+        $icsContent = $this->calendarSync->buildIcsFeed($visits, 'PROvisit — Jadwal Kunjungan Sales');
+
+        return response($icsContent, 200, [
+            'Content-Type' => 'text/calendar; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="provisit-calendar.ics"',
+        ]);
+    }
+
+    public function visitIcs(Visit $visit)
+    {
+        $visit->load(['primarySalesUser:id,name', 'principalReviews']);
+        $icsContent = $this->calendarSync->buildIcsFeed([$visit], "PROvisit — {$visit->visit_code}");
+
+        return response($icsContent, 200, [
+            'Content-Type' => 'text/calendar; charset=utf-8',
+            'Content-Disposition' => "attachment; filename=\"{$visit->visit_code}.ics\"",
+        ]);
+    }
 
     public function productSearch(Request $request)
     {
@@ -138,6 +171,7 @@ class VisitController extends Controller
         $supportMarketing = $this->normalizeSupportMarketing($validated['support_marketing'] ?? []);
 
         $visit = DB::transaction(function () use (
+            $request,
             $validated,
             $customer,
             $pic,
@@ -170,9 +204,27 @@ class VisitController extends Controller
                 'postvisit_result' => $validated['postvisit_result'] ?? null,
                 'status' => $validated['status'],
                 'report_completed_at' => $validated['status'] === 'Completed' ? now() : null,
+                'created_by' => $request->user()?->id,
+                'updated_by' => $request->user()?->id,
             ]);
 
             $this->syncVisitRelations($visit, $validated, $productsByReview, $principalNames, $salesUserId);
+            $this->calendarSync->syncVisit($visit);
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'CREATE',
+                'auditable_type' => Visit::class,
+                'auditable_id' => $visit->id,
+                'old_values' => null,
+                'new_values' => [
+                    'visit_code' => $visit->visit_code,
+                    'visit_date' => $visit->visit_date?->format('Y-m-d'),
+                    'status' => $visit->status,
+                    'customer' => $customer->name,
+                ],
+                'ip_address' => $request->ip(),
+            ]);
 
             return $visit;
         });
@@ -205,13 +257,22 @@ class VisitController extends Controller
         $salesUserId = $this->resolveSalesUserId($customer);
         $supportMarketing = $this->normalizeSupportMarketing($validated['support_marketing'] ?? []);
 
+        $oldSnapshot = [
+            'title' => $visit->title,
+            'visit_date' => $visit->visit_date?->format('Y-m-d'),
+            'start_time' => $visit->start_time ? substr((string) $visit->start_time, 0, 5) : null,
+            'status' => $visit->status,
+        ];
+
         DB::transaction(function () use (
+            $request,
             $visit,
             $validated,
             $customer,
             $pic,
             $salesUserId,
-            $supportMarketing
+            $supportMarketing,
+            $oldSnapshot
         ) {
             [$productsByReview, $principalNames] = $this->validateAndLoadReviews($validated['principal_reviews']);
 
@@ -238,6 +299,7 @@ class VisitController extends Controller
                 'postvisit_result' => $validated['postvisit_result'] ?? null,
                 'status' => $validated['status'],
                 'report_completed_at' => $completedAt,
+                'updated_by' => $request->user()?->id,
             ]);
 
             $visit->principalReviews()->each(function ($review) {
@@ -247,11 +309,126 @@ class VisitController extends Controller
             $visit->actionPlans()->delete();
 
             $this->syncVisitRelations($visit, $validated, $productsByReview, $principalNames, $salesUserId);
+            $this->calendarSync->syncVisit($visit);
+
+            $newSnapshot = [
+                'title' => $visit->title,
+                'visit_date' => $visit->visit_date?->format('Y-m-d'),
+                'start_time' => $visit->start_time ? substr((string) $visit->start_time, 0, 5) : null,
+                'status' => $visit->status,
+            ];
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => $oldSnapshot['status'] !== $newSnapshot['status'] ? 'STATUS_CHANGE' : 'UPDATE',
+                'auditable_type' => Visit::class,
+                'auditable_id' => $visit->id,
+                'old_values' => $oldSnapshot,
+                'new_values' => $newSnapshot,
+                'ip_address' => $request->ip(),
+            ]);
         });
 
         return redirect()
             ->route('visits.index')
             ->with('success', "Visit {$visit->visit_code} berhasil diperbarui.");
+    }
+
+    public function reschedule(Request $request, Visit $visit)
+    {
+        if (in_array($visit->status, ['Completed', 'Cancelled'], true)) {
+            return back()->withErrors([
+                'visit_date' => "Visit dengan status {$visit->status} tidak dapat dijadwalkan ulang lewat kalender.",
+            ]);
+        }
+
+        $validated = $request->validate([
+            'visit_date' => 'required|date',
+        ]);
+
+        $oldDate = $visit->visit_date ? $visit->visit_date->format('Y-m-d') : null;
+        $newDate = date('Y-m-d', strtotime($validated['visit_date']));
+
+        if ($oldDate === $newDate) {
+            return redirect()->route('visits.index');
+        }
+
+        DB::transaction(function () use ($request, $visit, $oldDate, $newDate) {
+            $visit->update([
+                'visit_date' => $newDate,
+                'updated_by' => $request->user()?->id,
+            ]);
+
+            $this->calendarSync->syncVisit($visit);
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'RESCHEDULE',
+                'auditable_type' => Visit::class,
+                'auditable_id' => $visit->id,
+                'old_values' => ['visit_date' => $oldDate],
+                'new_values' => ['visit_date' => $newDate],
+                'ip_address' => $request->ip(),
+            ]);
+        });
+
+        return redirect()
+            ->route('visits.index')
+            ->with('success', "Jadwal {$visit->visit_code} dipindahkan ke {$newDate}.");
+    }
+
+    public function updateStatus(Request $request, Visit $visit)
+    {
+        $validated = $request->validate([
+            'status' => [
+                'required',
+                Rule::in(['Draft', 'Planned', 'Confirmed', 'Completed', 'Cancelled']),
+            ],
+        ]);
+
+        $oldStatus = $visit->status;
+        $newStatus = $validated['status'];
+
+        if ($oldStatus === $newStatus) {
+            return redirect()->route('visits.index');
+        }
+
+        if ($newStatus === 'Completed') {
+            $hasResult = trim((string) $visit->postvisit_result) !== '';
+            $hasActionPlan = $visit->actionPlans()->exists();
+
+            if (!$hasResult || !$hasActionPlan) {
+                return back()->withErrors([
+                    'status' => 'Untuk mengubah status ke Completed, lengkapi Post-visit Result dan Action Plan terlebih dahulu.',
+                ]);
+            }
+        }
+
+        DB::transaction(function () use ($request, $visit, $oldStatus, $newStatus) {
+            $visit->update([
+                'status' => $newStatus,
+                'report_completed_at' => $newStatus === 'Completed'
+                    ? ($visit->report_completed_at ?? now())
+                    : null,
+                'updated_by' => $request->user()?->id,
+            ]);
+
+            $this->calendarSync->syncVisit($visit);
+
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'STATUS_CHANGE',
+                'auditable_type' => Visit::class,
+                'auditable_id' => $visit->id,
+                'old_values' => ['status' => $oldStatus],
+                'new_values' => ['status' => $newStatus],
+                'ip_address' => $request->ip(),
+            ]);
+        });
+
+        return redirect()
+            ->route('visits.index')
+            ->with('success', "Status {$visit->visit_code} diubah menjadi {$newStatus}.");
     }
 
     private function validateVisitPayload(Request $request, bool $isUpdate): array

@@ -7,7 +7,10 @@
         User as UserIcon,
         CheckCircle2,
         X,
-        Briefcase
+        Briefcase,
+        ExternalLink,
+        Download,
+        History
     } from '@lucide/svelte';
 
     let {
@@ -17,6 +20,51 @@
         onEdit,
         statusColor
     } = $props();
+
+    function buildGoogleCalendarUrl(v) {
+        if (!v) return '#';
+        const dateClean = String(v.visit_date || '').replaceAll('-', '');
+        const startRaw = v.start_time ? String(v.start_time).substring(0, 5).replace(':', '') : '0900';
+        const startHour = parseInt(startRaw.slice(0, 2), 10) || 9;
+        const startMin = startRaw.slice(2, 4) || '00';
+        const endHour = String((startHour + 1) % 24).padStart(2, '0');
+        const datesParam = `${dateClean}T${String(startHour).padStart(2, '0')}${startMin}00/${dateClean}T${endHour}${startMin}00`;
+
+        const title = `[${v.visit_code}] ${v.customer_name_snapshot} - ${v.title}`;
+        const details = [
+            `Kode Visit: ${v.visit_code}`,
+            `Customer: ${v.customer_name_snapshot}`,
+            v.pic_name_snapshot ? `PIC: ${v.pic_name_snapshot}` : '',
+            v.primary_sales_user?.name ? `Sales PIC: ${v.primary_sales_user.name}` : '',
+            v.support_marketing?.length ? `Support Marketing: ${v.support_marketing.join(', ')}` : '',
+            v.agenda ? `\nAgenda:\n${v.agenda}` : ''
+        ].filter(Boolean).join('\n');
+
+        const params = new URLSearchParams({
+            action: 'TEMPLATE',
+            text: title,
+            dates: datesParam,
+            ctz: 'Asia/Jakarta',
+            details,
+            location: v.customer_name_snapshot || ''
+        });
+
+        return `https://calendar.google.com/calendar/render?${params.toString()}`;
+    }
+
+    function formatAuditLabel(log) {
+        const actor = log.user?.initial || log.user?.name || 'System';
+        if (log.action === 'CREATE') {
+            return `${actor} membuat kunjungan ini`;
+        }
+        if (log.action === 'RESCHEDULE') {
+            return `${actor} memindahkan tanggal dari ${log.old_values?.visit_date || '-'} ke ${log.new_values?.visit_date || '-'}`;
+        }
+        if (log.action === 'STATUS_CHANGE') {
+            return `${actor} mengubah status dari ${log.old_values?.status || '-'} menjadi ${log.new_values?.status || '-'}`;
+        }
+        return `${actor} memperbarui detail kunjungan`;
+    }
 </script>
 
 {#if open && visit}
@@ -53,9 +101,30 @@
                 <h2 class="text-xl font-bold text-slate-900 leading-snug">
                     {visit.title}
                 </h2>
-                <p class="text-xs text-slate-400 mt-1">
-                    Dibuat pada {new Date(visit.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}
-                </p>
+                <div class="flex items-center justify-between gap-2 mt-2">
+                    <p class="text-xs text-slate-400">
+                        Dibuat pada {new Date(visit.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                    </p>
+
+                    <div class="flex items-center gap-1.5">
+                        <a
+                            href={buildGoogleCalendarUrl(visit)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 transition-colors"
+                        >
+                            <ExternalLink class="w-3 h-3" />
+                            <span>Google Calendar</span>
+                        </a>
+                        <a
+                            href="/visits/{visit.id}/calendar.ics"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-medium text-slate-700 transition-colors"
+                        >
+                            <Download class="w-3 h-3" />
+                            <span>.ics</span>
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <!-- Properties Grid -->
@@ -183,6 +252,26 @@
                                         <span>Prioritas: {plan.priority}</span>
                                     </div>
                                 </div>
+                            </div>
+                        {/each}
+                    </div>
+                </div>
+            {/if}
+
+            <!-- Activity / Audit Log History (Notion Page Updates) -->
+            {#if visit.audit_logs && visit.audit_logs.length > 0}
+                <div class="border-t border-slate-100 pt-4">
+                    <h4 class="text-xs font-semibold text-slate-900 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                        <History class="w-3.5 h-3.5 text-slate-400" />
+                        <span>Riwayat Aktivitas</span>
+                    </h4>
+                    <div class="flex flex-col gap-2">
+                        {#each visit.audit_logs as log}
+                            <div class="flex items-start justify-between gap-2 text-[11px] text-slate-600 bg-slate-50/70 px-3 py-2 rounded-lg border border-slate-100">
+                                <span>{formatAuditLabel(log)}</span>
+                                <span class="text-[10px] text-slate-400 shrink-0">
+                                    {new Date(log.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                                </span>
                             </div>
                         {/each}
                     </div>

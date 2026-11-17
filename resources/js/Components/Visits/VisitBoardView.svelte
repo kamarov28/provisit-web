@@ -4,19 +4,73 @@
     let {
         visits = [],
         onSelectVisit,
+        onStatusChange,
         statusColor
     } = $props();
 
-    const columns = ['Planned', 'Confirmed', 'In Progress', 'Completed'];
+    const columns = [
+        { key: 'Draft', label: 'Draft' },
+        { key: 'Planned', label: 'Planned' },
+        { key: 'Confirmed', label: 'Confirmed' },
+        { key: 'Completed', label: 'Completed' }
+    ];
+
+    let draggedVisit = $state(null);
+    let dragOverColumn = $state(null);
+
+    function handleDragStart(e, visit) {
+        draggedVisit = visit;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(visit.id));
+    }
+
+    function handleDragOver(e, columnKey) {
+        if (!draggedVisit) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        dragOverColumn = columnKey;
+    }
+
+    function handleDragLeave(columnKey) {
+        if (dragOverColumn === columnKey) {
+            dragOverColumn = null;
+        }
+    }
+
+    function handleDrop(e, targetStatus) {
+        e.preventDefault();
+        dragOverColumn = null;
+
+        if (!draggedVisit) return;
+        const visit = draggedVisit;
+        draggedVisit = null;
+
+        if (visit.status !== targetStatus && onStatusChange) {
+            onStatusChange(visit, targetStatus);
+        }
+    }
+
+    function handleDragEnd() {
+        draggedVisit = null;
+        dragOverColumn = null;
+    }
 </script>
 
 <div class="grid grid-cols-4 gap-4 flex-1 items-start">
-    {#each columns as columnStatus}
-        {@const statusVisits = visits.filter(v => v.status === columnStatus)}
-        <div class="bg-slate-100/70 rounded-xl p-3 border border-slate-200/80 flex flex-col gap-2.5">
+    {#each columns as col}
+        {@const statusVisits = visits.filter(v => v.status === col.key)}
+        {@const isDropTarget = dragOverColumn === col.key && draggedVisit?.status !== col.key}
+        <div
+            role="region"
+            aria-label="Kolom {col.label}"
+            ondragover={(e) => handleDragOver(e, col.key)}
+            ondragleave={() => handleDragLeave(col.key)}
+            ondrop={(e) => handleDrop(e, col.key)}
+            class="rounded-xl p-3 border flex flex-col gap-2.5 min-h-96 transition-colors {isDropTarget ? 'bg-blue-50/70 border-blue-400 ring-2 ring-blue-300/60' : 'bg-slate-100/70 border-slate-200/80'}"
+        >
             <div class="flex items-center justify-between px-1">
                 <div class="flex items-center gap-2">
-                    <span class="text-xs font-semibold text-slate-800">{columnStatus}</span>
+                    <span class="text-xs font-semibold text-slate-800">{col.label}</span>
                     <span class="text-[11px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
                         {statusVisits.length}
                     </span>
@@ -28,9 +82,13 @@
                     <div
                         role="button"
                         tabindex="0"
+                        draggable="true"
+                        ondragstart={(e) => handleDragStart(e, visit)}
+                        ondragend={handleDragEnd}
                         onclick={() => onSelectVisit(visit)}
                         onkeydown={(e) => e.key === 'Enter' && onSelectVisit(visit)}
-                        class="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2"
+                        title="Seret kartu untuk mengubah status"
+                        class="bg-white border border-slate-200 rounded-lg p-3.5 shadow-2xs hover:border-slate-300 transition-all cursor-grab active:cursor-grabbing flex flex-col gap-2 {draggedVisit?.id === visit.id ? 'opacity-40' : ''}"
                     >
                         <div class="flex items-center justify-between">
                             <span class="text-[10px] font-mono text-slate-400">{visit.visit_code}</span>
@@ -47,12 +105,12 @@
                         </div>
                         <div class="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
                             <span>{visit.visit_date}</span>
-                            <span>{visit.primary_sales_user?.name || 'Sales'}</span>
+                            <span>{visit.primary_sales_user?.initial || visit.primary_sales_user?.name || 'Sales'}</span>
                         </div>
                     </div>
                 {:else}
-                    <div class="p-4 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
-                        Tidak ada visit
+                    <div class="p-6 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-lg">
+                        Seret visit ke sini
                     </div>
                 {/each}
             </div>
