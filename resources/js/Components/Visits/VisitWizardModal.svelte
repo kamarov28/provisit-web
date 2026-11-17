@@ -188,6 +188,62 @@
         isModalOpen = true;
     }
 
+    export function openDuplicate(visit) {
+        if (!visit) return;
+
+        editingVisit = null;
+        currentStep = 1;
+        formError = '';
+
+        formTitle = `${visit.title} (Follow-up)`;
+        formDate = new Date().toISOString().split('T')[0];
+        formStartTime = visit.start_time ? String(visit.start_time).substring(0, 5) : '10:00';
+        formVisitType = visit.visit_type || 'Offline Visit';
+        formVisitPurpose = 'Follow-up / Relationship';
+
+        formCustomerId = visit.customer_id ? String(visit.customer_id) : '';
+        formCustomerSearch = visit.customer?.name || visit.customer_name_snapshot || '';
+        formCustomerPicId = visit.customer_pic_id ? String(visit.customer_pic_id) : '';
+        formSalesUserId = visit.primary_sales_user_id ? String(visit.primary_sales_user_id) : '';
+        formSupportMarketing = Array.isArray(visit.support_marketing)
+            ? visit.support_marketing.map(item => String(item).trim().toUpperCase()).filter(item => item && item !== 'NONE')
+            : [];
+
+        formAgenda = visit.agenda || '';
+        formPrevisitNotes = visit.previsit_notes || '';
+        formStatus = 'Planned';
+
+        if (visit.principal_reviews && visit.principal_reviews.length > 0) {
+            formReviews = visit.principal_reviews.map(rev => ({
+                principal_id: rev.principal_id ? String(rev.principal_id) : '',
+                principal_name: rev.principal_name_snapshot || principals.find(p => String(p.id) === String(rev.principal_id))?.name || '',
+                exposure_type: 'Follow-up',
+                opportunity_status: rev.opportunity_status || 'Interested',
+                notes: '',
+                productSearch: '',
+                productResults: [],
+                productLoading: false,
+                productError: '',
+                products: (rev.products || []).map(prod => ({
+                    product_id: prod.product_id,
+                    catalogue: prod.product_catalogue,
+                    description: prod.product_description_snapshot || ''
+                }))
+            }));
+        } else {
+            formReviews = [
+                { principal_id: '', principal_name: '', exposure_type: 'Introduction', opportunity_status: 'Interested', notes: '', products: [] }
+            ];
+        }
+
+        formPostvisitResult = '';
+        formActionPlans = [
+            { task_description: '', owner_user_id: formSalesUserId, due_date: '', priority: 'Normal' }
+        ];
+
+        isModalOpen = true;
+    }
+
     function closeModal() {
         isModalOpen = false;
         editingVisit = null;

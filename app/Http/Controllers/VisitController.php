@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ActionPlan;
 use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\CustomerPic;
@@ -436,6 +437,36 @@ class VisitController extends Controller
         return redirect()
             ->route('visits.index')
             ->with('success', "Status {$visit->visit_code} diubah menjadi {$newStatus}.");
+    }
+
+    public function toggleActionPlan(Request $request, ActionPlan $actionPlan)
+    {
+        $isCompleting = $actionPlan->status !== 'Completed';
+        $oldStatus = $actionPlan->status;
+        $newStatus = $isCompleting ? 'Completed' : 'Open';
+
+        DB::transaction(function () use ($request, $actionPlan, $isCompleting, $oldStatus, $newStatus) {
+            $actionPlan->update([
+                'status' => $newStatus,
+                'completed_at' => $isCompleting ? now() : null,
+            ]);
+
+            if ($actionPlan->visit_id) {
+                AuditLog::create([
+                    'user_id' => $request->user()?->id,
+                    'action' => 'ACTION_PLAN_TOGGLE',
+                    'auditable_type' => Visit::class,
+                    'auditable_id' => $actionPlan->visit_id,
+                    'old_values' => ['task' => $actionPlan->task_description, 'status' => $oldStatus],
+                    'new_values' => ['task' => $actionPlan->task_description, 'status' => $newStatus],
+                    'ip_address' => $request->ip(),
+                ]);
+            }
+        });
+
+        return redirect()
+            ->route('visits.index')
+            ->with('success', "Action Plan ditandai {$newStatus}.");
     }
 
     private function validateVisitPayload(Request $request, bool $isUpdate): array

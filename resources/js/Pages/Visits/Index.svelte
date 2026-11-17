@@ -19,6 +19,7 @@
     import VisitAnalyticsView from '../../Components/Visits/VisitAnalyticsView.svelte';
     import VisitDetailDrawer from '../../Components/Visits/VisitDetailDrawer.svelte';
     import VisitWizardModal from '../../Components/Visits/VisitWizardModal.svelte';
+    import MasterDataModal from '../../Components/Visits/MasterDataModal.svelte';
 
     let {
         visits = [],
