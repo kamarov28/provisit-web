@@ -9,6 +9,7 @@ use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
 class CalendarSyncTest extends TestCase
@@ -45,6 +46,8 @@ class CalendarSyncTest extends TestCase
             'name' => 'Neogen',
             'is_active' => true,
         ]);
+
+        $this->actingAs($this->salesYes);
     }
 
     public function test_ics_feed_exports_active_visits_and_excludes_cancelled(): void
@@ -73,7 +76,8 @@ class CalendarSyncTest extends TestCase
             'status' => 'Cancelled',
         ]);
 
-        $feedRes = $this->get('/visits/calendar.ics');
+        $this->get('/visits/calendar.ics')->assertStatus(403);
+        $feedRes = $this->get(URL::signedRoute('visits.calendar.ics'));
         $feedRes->assertStatus(200);
         $content = $feedRes->getContent();
         $this->assertStringContainsString('BEGIN:VCALENDAR', $content);

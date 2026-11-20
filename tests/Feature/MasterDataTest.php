@@ -5,12 +5,20 @@ namespace Tests\Feature;
 use App\Models\Customer;
 use App\Models\Principal;
 use App\Models\Product;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class MasterDataTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $user = User::create(['name' => 'Marketing', 'email' => 'marketing@prolabios.com', 'password' => bcrypt('password'), 'role' => 'admin', 'initial' => 'MKT', 'is_active' => true]);
+        $this->actingAs($user);
+    }
 
     public function test_can_store_customer_with_auto_generated_code(): void
     {

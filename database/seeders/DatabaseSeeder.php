@@ -21,7 +21,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Users
+        // 1. Users (Akun Utama Marketing & Admin)
+        $marketing = User::updateOrCreate(
+            ['email' => 'marketing@prolabios.com'],
+            [
+                'name' => 'Marketing Prolabios',
+                'password' => Hash::make(env('DEFAULT_MARKETING_PASSWORD', 'Prolabios#2026!')),
+                'role' => 'admin',
+                'team' => 'MANAGEMENT',
+                'initial' => 'MKT',
+                'phone' => '021-3874-1447',
+                'is_active' => true,
+                'can_view_all_visits' => true,
+                'can_edit_all_visits' => true,
+                'can_archive_visit' => true,
+                'can_delete_visit' => true,
+            ]
+        );
+
         $admin = User::firstOrCreate(
             ['email' => 'admin@prolabios.com'],
             [

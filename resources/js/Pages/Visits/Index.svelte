@@ -11,7 +11,8 @@
         Filter,
         X,
         RotateCcw,
-        Database
+        Database,
+        LogOut
     } from '@lucide/svelte';
     import { router } from '@inertiajs/svelte';
     import VisitCalendarView from '../../Components/Visits/VisitCalendarView.svelte';
@@ -408,6 +409,14 @@
                     <Plus class="w-3.5 h-3.5" />
                     <span>Catat Visit</span>
                 </button>
+                <button
+                    type="button"
+                    onclick={handleLogout}
+                    title="Keluar ({authUser?.email || 'Akun'})"
+                    class="inline-flex items-center justify-center p-2 border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                >
+                    <LogOut class="w-4 h-4" />
+                </button>
             </div>
         </div>
 
@@ -495,6 +504,14 @@
                 >
                     <Plus class="w-3.5 h-3.5" />
                     <span>Catat Visit</span>
+                </button>
+                <button
+                    type="button"
+                    onclick={handleLogout}
+                    title="Keluar ({authUser?.email || 'Akun'})"
+                    class="inline-flex items-center justify-center p-2 border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                >
+                    <LogOut class="w-4 h-4" />
                 </button>
             </div>
         </div>
@@ -695,7 +712,7 @@
                         >
                             <option value="">Semua Sales</option>
                             {#each salesUsers as u}
-                                <option value={String(u.id)}>{u.initial ? `${u.initial} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ${u.name}` : u.name}</option>
+                                <option value={String(u.id)}>{u.initial ? `${u.initial} ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ${u.name}` : u.name}</option>
                             {/each}
                         </select>
                     </div>
@@ -711,7 +728,7 @@
                             <option value="NONE">None (Tanpa Support)</option>
                             {#each supportMarketingUsers as sup}
                                 {@const code = String(sup.initial || '').trim().toUpperCase()}
-                                <option value={code}>{code} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â {sup.name}</option>
+                                <option value={code}>{code} ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â {sup.name}</option>
                             {/each}
                         </select>
                     </div>

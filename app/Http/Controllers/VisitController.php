@@ -14,6 +14,7 @@ use App\Models\Visit;
 use App\Services\CalendarSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -26,6 +27,13 @@ class VisitController extends Controller
 
     public function index(Request $request)
     {
+        Gate::authorize('viewAny', Visit::class);
+
+        $user = $request->user();
+        $canViewAll = in_array(strtolower((string) $user->role), ['admin', 'manager'], true)
+            || strcasecmp((string) $user->email, 'marketing@prolabios.com') === 0
+            || (bool) $user->can_view_all_visits;
+
         $query = Visit::with([
             'customer:id,name,customer_code,city,sector',
             'customerPic:id,name,position,phone',
@@ -37,6 +45,18 @@ class VisitController extends Controller
             ->where('is_archived', false)
             ->orderBy('visit_date', 'desc')
             ->orderBy('start_time', 'asc');
+
+        if (! $canViewAll) {
+            $userInitial = strtoupper(trim((string) $user->initial));
+            $query->where(function ($q) use ($user, $userInitial) {
+                $q->where('primary_sales_user_id', $user->id)
+                    ->orWhere('created_by', $user->id);
+
+                if ($userInitial !== '') {
+                    $q->orWhereJsonContains('support_marketing', $userInitial);
+                }
+            });
+        }
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -116,6 +136,8 @@ class VisitController extends Controller
 
     public function visitIcs(Visit $visit)
     {
+        Gate::authorize('view', $visit);
+
         $visit->load(['primarySalesUser:id,name', 'principalReviews']);
         $icsContent = $this->calendarSync->buildIcsFeed([$visit], "PROvisit - {$visit->visit_code}");
 
@@ -150,6 +172,8 @@ class VisitController extends Controller
 
     public function store(UpsertVisitRequest $request)
     {
+        Gate::authorize('create', Visit::class);
+
         $validated = $request->validated();
 
         $customer = Customer::findOrFail($validated['customer_id']);
@@ -223,6 +247,8 @@ class VisitController extends Controller
 
     public function update(UpsertVisitRequest $request, Visit $visit)
     {
+        Gate::authorize('update', $visit);
+
         $validated = $request->validated();
 
         $customer = Customer::findOrFail($validated['customer_id']);
@@ -309,6 +335,8 @@ class VisitController extends Controller
 
     public function reschedule(Request $request, Visit $visit)
     {
+        Gate::authorize('update', $visit);
+
         if (in_array($visit->status, ['Completed', 'Cancelled'], true)) {
             return back()->withErrors([
                 'visit_date' => "Visit dengan status {$visit->status} tidak dapat dijadwalkan ulang.",
@@ -359,6 +387,8 @@ class VisitController extends Controller
 
     public function updateStatus(Request $request, Visit $visit)
     {
+        Gate::authorize('update', $visit);
+
         $validated = $request->validate([
             'status' => [
                 'required',
@@ -413,6 +443,8 @@ class VisitController extends Controller
 
     public function toggleActionPlan(Request $request, ActionPlan $actionPlan)
     {
+        Gate::authorize('update', $actionPlan->visit);
+
         $isCompleting = $actionPlan->status !== 'Completed';
         $oldStatus = $actionPlan->status;
         $newStatus = $isCompleting ? 'Completed' : 'Open';

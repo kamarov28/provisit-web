@@ -43,4 +43,9 @@ class User extends Authenticatable
             'can_delete_visit' => 'boolean',
         ];
     }
+
+    public static function findMarketingMaster(): ?self
+    {
+        return static::where('email', 'marketing@prolabios.com')->first();
+    }
 }

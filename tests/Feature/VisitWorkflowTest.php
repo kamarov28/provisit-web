@@ -70,7 +70,7 @@ class VisitWorkflowTest extends TestCase
         ]);
 
         $this->principal = Principal::create([
-            'name' => 'bioMÃƒÂ©rieux',
+            'name' => 'bioMÃƒÆ’Ã‚Â©rieux',
             'country' => 'France',
             'is_active' => true,
         ]);
@@ -82,6 +82,8 @@ class VisitWorkflowTest extends TestCase
             'description' => 'VITEK 2 Compact Automated ID/AST System',
             'is_active' => true,
         ]);
+
+        $this->actingAs($this->salesUser);
     }
 
     public function test_index_renders_inertia_page_with_expected_props(): void
@@ -151,7 +153,7 @@ class VisitWorkflowTest extends TestCase
         $this->assertDatabaseHas('principal_reviews', [
             'visit_id' => $visit->id,
             'principal_id' => $this->principal->id,
-            'principal_name_snapshot' => 'bioMÃƒÂ©rieux',
+            'principal_name_snapshot' => 'bioMÃƒÆ’Ã‚Â©rieux',
         ]);
 
         $this->assertDatabaseHas('principal_review_products', [
