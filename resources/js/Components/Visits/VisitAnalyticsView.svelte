@@ -33,7 +33,6 @@
         const teamMap = new Map();
 
         for (const v of activeVisits) {
-            // Sales & Team aggregation
             const salesName = v.primary_sales_user?.name || 'Unassigned';
             const salesInit = v.primary_sales_user?.initial || '-';
             const teamName = v.primary_sales_user?.team || 'Lainnya';
@@ -61,7 +60,6 @@
             tEntry.total++;
             if (v.status === 'Completed') tEntry.completed++;
 
-            // Principal Reviews aggregation
             for (const rev of v.principal_reviews || []) {
                 totalReviews++;
                 const opp = rev.opportunity_status || 'No Signal';
@@ -105,9 +103,9 @@
     });
 </script>
 
-<div class="flex flex-col gap-5">
+<div class="flex flex-col gap-4 sm:gap-5">
     <!-- Top KPI Cards -->
-    <div class="grid grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
             <div class="flex items-center justify-between text-slate-400">
                 <span class="text-[11px] font-semibold uppercase tracking-wider">Completion Rate</span>
@@ -145,9 +143,9 @@
         </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-5">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
         <!-- Opportunity Pipeline Distribution -->
-        <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs flex flex-col gap-3.5">
+        <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
             <div>
                 <h3 class="text-sm font-bold text-slate-900">Distribusi Opportunity Status</h3>
                 <p class="text-[11px] text-slate-400">Sebaran status peluang berdasarkan seluruh Principal Review terfilter</p>
@@ -171,9 +169,9 @@
         </div>
 
         <!-- Team & Top Principals -->
-        <div class="flex flex-col gap-5">
+        <div class="flex flex-col gap-4 sm:gap-5">
             <!-- Breakdown per Tim -->
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs flex flex-col gap-3">
+            <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3">
                 <div class="flex items-center justify-between">
                     <div>
                         <h3 class="text-sm font-bold text-slate-900">Aktivitas per Tim</h3>
@@ -182,7 +180,7 @@
                     <Users class="w-4 h-4 text-slate-400" />
                 </div>
 
-                <div class="grid grid-cols-3 gap-2.5">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {#each metrics.teamBreakdown as t}
                         <div class="p-3 rounded-lg bg-slate-50 border border-slate-200/80">
                             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">{t.team}</span>
@@ -190,13 +188,13 @@
                             <span class="text-[10px] text-emerald-700 font-medium">{t.completed} selesai</span>
                         </div>
                     {:else}
-                        <p class="col-span-3 text-xs text-slate-400">Belum ada data tim.</p>
+                        <p class="sm:col-span-3 text-xs text-slate-400">Belum ada data tim.</p>
                     {/each}
                 </div>
             </div>
 
             <!-- Top Principal -->
-            <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs flex flex-col gap-3 flex-1">
+            <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3 flex-1">
                 <div>
                     <h3 class="text-sm font-bold text-slate-900">Performa per Principal</h3>
                     <p class="text-[11px] text-slate-400">Frekuensi pembahasan produk & jumlah demo/quotation</p>
@@ -206,19 +204,19 @@
                     <table class="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr class="border-b border-slate-200 text-[10px] font-semibold uppercase text-slate-400">
-                                <th class="py-2">Principal</th>
-                                <th class="py-2 text-right">Review</th>
-                                <th class="py-2 text-right">Demo</th>
-                                <th class="py-2 text-right">Quotation/Won</th>
+                                <th class="py-2 pr-3">Principal</th>
+                                <th class="py-2 px-2 text-right">Review</th>
+                                <th class="py-2 px-2 text-right">Demo</th>
+                                <th class="py-2 pl-2 text-right whitespace-nowrap">Quotation/Won</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             {#each metrics.topPrincipals as p}
                                 <tr>
-                                    <td class="py-2 font-semibold text-slate-800">{p.name}</td>
-                                    <td class="py-2 text-right font-mono text-slate-700">{p.reviews}</td>
-                                    <td class="py-2 text-right font-mono text-slate-600">{p.demos}</td>
-                                    <td class="py-2 text-right font-mono font-semibold text-emerald-700">{p.quotationsOrWon}</td>
+                                    <td class="py-2 pr-3 font-semibold text-slate-800">{p.name}</td>
+                                    <td class="py-2 px-2 text-right font-mono text-slate-700">{p.reviews}</td>
+                                    <td class="py-2 px-2 text-right font-mono text-slate-600">{p.demos}</td>
+                                    <td class="py-2 pl-2 text-right font-mono font-semibold text-emerald-700">{p.quotationsOrWon}</td>
                                 </tr>
                             {:else}
                                 <tr>
@@ -233,44 +231,46 @@
     </div>
 
     <!-- Sales Performance Table -->
-    <div class="bg-white border border-slate-200 rounded-xl p-5 shadow-2xs flex flex-col gap-3">
+    <div class="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3">
         <div>
             <h3 class="text-sm font-bold text-slate-900">Ringkasan Kunjungan per PIC Sales</h3>
             <p class="text-[11px] text-slate-400">Rekapitulasi kunjungan terencana dan selesai untuk setiap sales representative</p>
         </div>
 
-        <table class="w-full text-left border-collapse text-xs">
-            <thead>
-                <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold uppercase text-slate-500">
-                    <th class="py-2.5 px-3">Inisial</th>
-                    <th class="py-2.5 px-3">Nama PIC Sales</th>
-                    <th class="py-2.5 px-3">Tim</th>
-                    <th class="py-2.5 px-3 text-right">Total Visit</th>
-                    <th class="py-2.5 px-3 text-right">Terjadwal</th>
-                    <th class="py-2.5 px-3 text-right">Selesai</th>
-                    <th class="py-2.5 px-3 text-right">Rasio Selesai</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                {#each metrics.salesLeaderboard as s}
-                    {@const rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0}
-                    <tr>
-                        <td class="py-2.5 px-3 font-mono font-bold text-slate-700">{s.initial}</td>
-                        <td class="py-2.5 px-3 font-medium text-slate-900">{s.name}</td>
-                        <td class="py-2.5 px-3">
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">{s.team}</span>
-                        </td>
-                        <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{s.total}</td>
-                        <td class="py-2.5 px-3 text-right font-mono text-blue-700">{s.planned}</td>
-                        <td class="py-2.5 px-3 text-right font-mono text-emerald-700">{s.completed}</td>
-                        <td class="py-2.5 px-3 text-right font-mono text-slate-600">{rate}%</td>
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-[10px] font-semibold uppercase text-slate-500">
+                        <th class="py-2.5 px-3">Inisial</th>
+                        <th class="py-2.5 px-3 whitespace-nowrap">Nama PIC Sales</th>
+                        <th class="py-2.5 px-3">Tim</th>
+                        <th class="py-2.5 px-3 text-right whitespace-nowrap">Total Visit</th>
+                        <th class="py-2.5 px-3 text-right">Terjadwal</th>
+                        <th class="py-2.5 px-3 text-right">Selesai</th>
+                        <th class="py-2.5 px-3 text-right whitespace-nowrap">Rasio Selesai</th>
                     </tr>
-                {:else}
-                    <tr>
-                        <td colspan="7" class="py-6 text-center text-slate-400">Belum ada data kunjungan sales.</td>
-                    </tr>
-                {/each}
-            </tbody>
-        </table>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {#each metrics.salesLeaderboard as s}
+                        {@const rate = s.total > 0 ? Math.round((s.completed / s.total) * 100) : 0}
+                        <tr>
+                            <td class="py-2.5 px-3 font-mono font-bold text-slate-700">{s.initial}</td>
+                            <td class="py-2.5 px-3 font-medium text-slate-900 whitespace-nowrap">{s.name}</td>
+                            <td class="py-2.5 px-3">
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600">{s.team}</span>
+                            </td>
+                            <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-900">{s.total}</td>
+                            <td class="py-2.5 px-3 text-right font-mono text-blue-700">{s.planned}</td>
+                            <td class="py-2.5 px-3 text-right font-mono text-emerald-700">{s.completed}</td>
+                            <td class="py-2.5 px-3 text-right font-mono text-slate-600">{rate}%</td>
+                        </tr>
+                    {:else}
+                        <tr>
+                            <td colspan="7" class="py-6 text-center text-slate-400">Belum ada data kunjungan sales.</td>
+                        </tr>
+                    {/each}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>

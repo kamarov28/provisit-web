@@ -31,7 +31,7 @@
         filters = {}
     } = $props();
 
-    let currentView = $state('calendar'); // 'calendar' | 'board' | 'table'
+    let currentView = $state('calendar'); // 'calendar' | 'board' | 'table' | 'analytics'
     let calendarScale = $state('month'); // 'month' | 'week'
     let activeSavedView = $state('all'); // 'all' | 'upcoming' | 'followup' | 'completed'
 
@@ -186,9 +186,9 @@
             const start = new Date(calendarDays[0].dateString + 'T00:00:00');
             const end = new Date(calendarDays[6].dateString + 'T00:00:00');
             if (start.getMonth() === end.getMonth()) {
-                return `${start.getDate()} â€“ ${end.getDate()} ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
+                return `${start.getDate()} - ${end.getDate()} ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
             }
-            return `${start.getDate()} ${monthNames[start.getMonth()].slice(0, 3)} â€“ ${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
+            return `${start.getDate()} ${monthNames[start.getMonth()].slice(0, 3)} - ${end.getDate()} ${monthNames[end.getMonth()].slice(0, 3)} ${end.getFullYear()}`;
         }
         return `${monthNames[currentMonth]} ${currentYear}`;
     });
@@ -225,7 +225,6 @@
         const todayStr = toLocalDateStr(new Date());
 
         return visits.filter(v => {
-            // 1. Saved View Filter
             if (activeSavedView === 'upcoming') {
                 if (!(['Draft', 'Planned', 'Confirmed'].includes(v.status) && v.visit_date >= todayStr)) {
                     return false;
@@ -240,7 +239,6 @@
                 if (v.status !== 'Completed') return false;
             }
 
-            // 2. Search Query
             const matchSearch = !searchQuery ||
                 (v.title && v.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
                 (v.customer_name_snapshot && v.customer_name_snapshot.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -248,11 +246,9 @@
 
             if (!matchSearch) return false;
 
-            // 3. Top Dropdowns
             if (selectedTeam !== 'ALL' && v.primary_sales_user?.team !== selectedTeam) return false;
             if (selectedStatus !== 'ALL' && v.status !== selectedStatus) return false;
 
-            // 4. Advanced Filters
             if (filterPrincipalId) {
                 const hasPrincipal = (v.principal_reviews || []).some(r => String(r.principal_id) === String(filterPrincipalId));
                 if (!hasPrincipal) return false;
@@ -361,64 +357,79 @@
 
 <div class="min-h-screen bg-[#FBFBFA] text-[#37352F] flex flex-col font-sans">
     <!-- Top Navigation Bar -->
-    <header class="border-b border-slate-200/80 bg-white sticky top-0 z-30 px-6 py-3.5 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-sm">
-                PV
-            </div>
-            <div>
-                <div class="flex items-center gap-2">
-                    <h1 class="text-base font-semibold tracking-tight text-slate-900">PROvisit</h1>
-                    <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium border border-slate-200">
-                        Mitra Analitika
-                    </span>
+    <header class="border-b border-slate-200/80 bg-white sticky top-0 z-30 px-4 sm:px-6 py-3 sm:py-3.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <!-- Brand & Mobile CTA -->
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-sm shrink-0">
+                    PV
                 </div>
-                <p class="text-[11px] text-slate-400">Portal Pelaporan & Tracking Kunjungan Sales</p>
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base font-semibold tracking-tight text-slate-900">PROvisit</h1>
+                        <span class="text-[11px] sm:text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium border border-slate-200 truncate">
+                            Mitra Analitika
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 truncate">Portal Pelaporan & Tracking Kunjungan Sales</p>
+                </div>
             </div>
+
+            <!-- Mobile New Visit Button -->
+            <button
+                type="button"
+                onclick={() => wizardModal?.openNew()}
+                class="lg:hidden inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer shrink-0"
+            >
+                <Plus class="w-3.5 h-3.5" />
+                <span>Catat Visit</span>
+            </button>
         </div>
 
-        <div class="flex items-center gap-3">
+        <!-- View Switcher, Dropdown Filters & Desktop CTA -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
             <!-- View Switcher -->
-            <div class="flex items-center bg-slate-100/90 p-1 rounded-lg border border-slate-200">
+            <div class="flex items-center bg-slate-100/90 p-1 rounded-lg border border-slate-200 overflow-x-auto max-w-full">
                 <button
                     type="button"
                     onclick={() => currentView = 'calendar'}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all {currentView === 'calendar' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'calendar' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
                 >
-                    <CalendarIcon class="w-3.5 h-3.5" />
+                    <CalendarIcon class="w-3.5 h-3.5 shrink-0" />
                     <span>Kalender</span>
                 </button>
                 <button
                     type="button"
                     onclick={() => currentView = 'board'}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all {currentView === 'board' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'board' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
                 >
-                    <LayoutGrid class="w-3.5 h-3.5" />
-                    <span>Status Board</span>
+                    <LayoutGrid class="w-3.5 h-3.5 shrink-0" />
+                    <span>Board</span>
                 </button>
                 <button
                     type="button"
                     onclick={() => currentView = 'table'}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all {currentView === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
                 >
-                    <TableIcon class="w-3.5 h-3.5" />
+                    <TableIcon class="w-3.5 h-3.5 shrink-0" />
                     <span>Tabel</span>
                 </button>
                 <button
                     type="button"
                     onclick={() => currentView = 'analytics'}
-                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all {currentView === 'analytics' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'analytics' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
                 >
-                    <BarChart3 class="w-3.5 h-3.5" />
+                    <BarChart3 class="w-3.5 h-3.5 shrink-0" />
                     <span>Analitik</span>
                 </button>
             </div>
 
-            <!-- Status Filter -->
-            <div class="relative">
+            <!-- Status & Team Dropdowns -->
+            <div class="flex items-center gap-2 flex-1 sm:flex-initial">
                 <select
                     bind:value={selectedStatus}
-                    class="text-xs font-medium bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
+                    aria-label="Filter Status"
+                    class="flex-1 sm:flex-initial text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
                 >
                     <option value="ALL">Semua Status</option>
                     <option value="Draft">Draft</option>
@@ -427,13 +438,11 @@
                     <option value="Completed">Completed</option>
                     <option value="Cancelled">Cancelled</option>
                 </select>
-            </div>
 
-            <!-- Team Filter -->
-            <div class="relative">
                 <select
                     bind:value={selectedTeam}
-                    class="text-xs font-medium bg-white border border-slate-200 rounded-lg px-3 py-2 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
+                    aria-label="Filter Tim"
+                    class="flex-1 sm:flex-initial text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 sm:px-3 py-2 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
                 >
                     <option value="ALL">Semua Tim</option>
                     <option value="YES">Tim YES</option>
@@ -442,11 +451,11 @@
                 </select>
             </div>
 
-            <!-- New Visit Button -->
+            <!-- Desktop New Visit Button -->
             <button
                 type="button"
                 onclick={() => wizardModal?.openNew()}
-                class="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
+                class="hidden lg:flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
             >
                 <Plus class="w-3.5 h-3.5" />
                 <span>Catat Visit</span>
@@ -455,34 +464,34 @@
     </header>
 
     <!-- Main Workspace -->
-    <main class="flex-1 p-6 max-w-7xl w-full mx-auto flex flex-col gap-4">
+    <main class="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto flex flex-col gap-4">
         <!-- Summary Stats Ribbon -->
-        <section class="grid grid-cols-4 gap-4">
-            <div class="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs">
-                <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Kunjungan</span>
-                <p class="text-2xl font-bold text-slate-900 mt-1">{stats.total}</p>
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div class="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-2xs">
+                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Kunjungan</span>
+                <p class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{stats.total}</p>
             </div>
-            <div class="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs">
-                <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Terencana (Planned)</span>
-                <p class="text-2xl font-bold text-slate-800 mt-1">{stats.planned}</p>
+            <div class="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-2xs">
+                <span class="text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Terencana (Planned)</span>
+                <p class="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{stats.planned}</p>
             </div>
-            <div class="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs">
-                <span class="text-[11px] font-semibold text-blue-500 uppercase tracking-wider">Terkonfirmasi</span>
-                <p class="text-2xl font-bold text-blue-700 mt-1">{stats.confirmed}</p>
+            <div class="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-2xs">
+                <span class="text-[10px] sm:text-[11px] font-semibold text-blue-500 uppercase tracking-wider">Terkonfirmasi</span>
+                <p class="text-xl sm:text-2xl font-bold text-blue-700 mt-1">{stats.confirmed}</p>
             </div>
-            <div class="bg-white border border-slate-200/80 rounded-xl p-4 shadow-2xs">
-                <span class="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Selesai (Completed)</span>
-                <p class="text-2xl font-bold text-emerald-700 mt-1">{stats.completed}</p>
+            <div class="bg-white border border-slate-200/80 rounded-xl p-3.5 sm:p-4 shadow-2xs">
+                <span class="text-[10px] sm:text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Selesai (Completed)</span>
+                <p class="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">{stats.completed}</p>
             </div>
         </section>
 
         <!-- Saved Views Tabs (Notion Database Views) -->
-        <div class="flex items-center justify-between border-b border-slate-200/80">
-            <div class="flex items-center gap-1 text-xs">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80">
+            <div class="flex items-center gap-1 text-xs overflow-x-auto whitespace-nowrap pb-px">
                 <button
                     type="button"
                     onclick={() => activeSavedView = 'all'}
-                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer {activeSavedView === 'all' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 {activeSavedView === 'all' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
                     <span>Semua Kunjungan</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600">{savedViewCounts.all}</span>
@@ -490,7 +499,7 @@
                 <button
                     type="button"
                     onclick={() => activeSavedView = 'upcoming'}
-                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer {activeSavedView === 'upcoming' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 {activeSavedView === 'upcoming' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
                     <span>Jadwal Mendatang</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-700">{savedViewCounts.upcoming}</span>
@@ -498,7 +507,7 @@
                 <button
                     type="button"
                     onclick={() => activeSavedView = 'followup'}
-                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer {activeSavedView === 'followup' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 {activeSavedView === 'followup' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
                     <span>Butuh Follow-up</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-50 text-amber-700">{savedViewCounts.followup}</span>
@@ -506,23 +515,23 @@
                 <button
                     type="button"
                     onclick={() => activeSavedView = 'completed'}
-                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer {activeSavedView === 'completed' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="px-3 py-2 border-b-2 font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 {activeSavedView === 'completed' ? 'border-slate-900 text-slate-900 font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
                     <span>Selesai</span>
                     <span class="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-50 text-emerald-700">{savedViewCounts.completed}</span>
                 </button>
             </div>
 
-            <span class="text-[11px] text-slate-400">
+            <span class="text-[11px] text-slate-400 pb-1.5 sm:pb-0">
                 Menampilkan <strong class="text-slate-600">{filteredVisits.length}</strong> kunjungan
             </span>
         </div>
 
         <!-- Search, Advanced Filter Builder & Calendar Period Navigator -->
         <div class="flex flex-col gap-2.5">
-            <div class="flex items-center justify-between gap-4">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
                 <div class="flex items-center gap-2 flex-1">
-                    <div class="relative flex-1 max-w-sm">
+                    <div class="relative flex-1 sm:max-w-sm">
                         <Search class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                             type="text"
@@ -535,7 +544,7 @@
                     <button
                         type="button"
                         onclick={() => isFilterOpen = !isFilterOpen}
-                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer {isFilterOpen || activeAdvancedFilterCount > 0 ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer shrink-0 {isFilterOpen || activeAdvancedFilterCount > 0 ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}"
                     >
                         <Filter class="w-3.5 h-3.5" />
                         <span>Filter</span>
@@ -550,70 +559,74 @@
                         <button
                             type="button"
                             onclick={resetAdvancedFilters}
-                            class="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                            class="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
                         >
                             <RotateCcw class="w-3.5 h-3.5" />
-                            <span>Reset</span>
+                            <span class="hidden sm:inline">Reset</span>
                         </button>
                     {/if}
                 </div>
 
                 {#if currentView === 'calendar'}
-                    <div class="flex items-center gap-2">
-                        <a
-                            href="/visits/calendar.ics"
-                            title="Download / Subscribe iCalendar (.ics)"
-                            class="px-2.5 py-1 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-md text-slate-600 transition-colors"
-                        >
-                            Export .ics
-                        </a>
+                    <div class="flex flex-wrap items-center justify-between sm:justify-start gap-2">
+                        <div class="flex items-center gap-2">
+                            <a
+                                href="/visits/calendar.ics"
+                                title="Download / Subscribe iCalendar (.ics)"
+                                class="px-2.5 py-1.5 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-md text-slate-600 transition-colors"
+                            >
+                                Export .ics
+                            </a>
 
-                        <!-- Month / Week Scale Switcher -->
-                        <div class="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200 text-xs">
-                            <button
-                                type="button"
-                                onclick={() => calendarScale = 'month'}
-                                class="px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer {calendarScale === 'month' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'}"
-                            >
-                                Bulan
-                            </button>
-                            <button
-                                type="button"
-                                onclick={() => calendarScale = 'week'}
-                                class="px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer {calendarScale === 'week' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'}"
-                            >
-                                Minggu
-                            </button>
+                            <!-- Month / Week Scale Switcher -->
+                            <div class="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200 text-xs">
+                                <button
+                                    type="button"
+                                    onclick={() => calendarScale = 'month'}
+                                    class="px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer {calendarScale === 'month' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'}"
+                                >
+                                    Bulan
+                                </button>
+                                <button
+                                    type="button"
+                                    onclick={() => calendarScale = 'week'}
+                                    class="px-2.5 py-1 rounded text-[11px] font-medium transition-colors cursor-pointer {calendarScale === 'week' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-500 hover:text-slate-800'}"
+                                >
+                                    Minggu
+                                </button>
+                            </div>
                         </div>
 
-                        <button
-                            type="button"
-                            onclick={todayPeriod}
-                            class="px-2.5 py-1 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-md transition-colors"
-                        >
-                            Hari Ini
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onclick={todayPeriod}
+                                class="px-2.5 py-1.5 text-xs font-medium border border-slate-200 bg-white hover:bg-slate-50 rounded-md transition-colors"
+                            >
+                                Hari Ini
+                            </button>
 
-                        <div class="flex items-center border border-slate-200 bg-white rounded-md overflow-hidden">
-                            <button
-                                type="button"
-                                onclick={prevPeriod}
-                                class="p-1.5 hover:bg-slate-50 text-slate-600 transition-colors"
-                                aria-label="Previous Period"
-                            >
-                                <ChevronLeft class="w-4 h-4" />
-                            </button>
-                            <span class="px-3 text-xs font-semibold text-slate-800 min-w-40 text-center select-none">
-                                {calendarPeriodLabel}
-                            </span>
-                            <button
-                                type="button"
-                                onclick={nextPeriod}
-                                class="p-1.5 hover:bg-slate-50 text-slate-600 transition-colors"
-                                aria-label="Next Period"
-                            >
-                                <ChevronRight class="w-4 h-4" />
-                            </button>
+                            <div class="flex items-center border border-slate-200 bg-white rounded-md overflow-hidden">
+                                <button
+                                    type="button"
+                                    onclick={prevPeriod}
+                                    class="p-1.5 hover:bg-slate-50 text-slate-600 transition-colors"
+                                    aria-label="Previous Period"
+                                >
+                                    <ChevronLeft class="w-4 h-4" />
+                                </button>
+                                <span class="px-2.5 sm:px-3 text-xs font-semibold text-slate-800 min-w-32 sm:min-w-40 text-center select-none">
+                                    {calendarPeriodLabel}
+                                </span>
+                                <button
+                                    type="button"
+                                    onclick={nextPeriod}
+                                    class="p-1.5 hover:bg-slate-50 text-slate-600 transition-colors"
+                                    aria-label="Next Period"
+                                >
+                                    <ChevronRight class="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 {/if}
@@ -621,7 +634,7 @@
 
             <!-- Collapsible Advanced Filter Bar -->
             {#if isFilterOpen}
-                <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs grid grid-cols-6 gap-3 text-xs">
+                <div class="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
                     <div>
                         <label for="fltPrincipal" class="block text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Principal</label>
                         <select
@@ -645,7 +658,7 @@
                         >
                             <option value="">Semua Sales</option>
                             {#each salesUsers as u}
-                                <option value={String(u.id)}>{u.initial ? `${u.initial} â€” ${u.name}` : u.name}</option>
+                                <option value={String(u.id)}>{u.initial ? `${u.initial} — ${u.name}` : u.name}</option>
                             {/each}
                         </select>
                     </div>
@@ -661,7 +674,7 @@
                             <option value="NONE">None (Tanpa Support)</option>
                             {#each supportMarketingUsers as sup}
                                 {@const code = String(sup.initial || '').trim().toUpperCase()}
-                                <option value={code}>{code} â€” {sup.name}</option>
+                                <option value={code}>{code} — {sup.name}</option>
                             {/each}
                         </select>
                     </div>

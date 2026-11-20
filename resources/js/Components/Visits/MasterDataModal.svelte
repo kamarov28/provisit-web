@@ -161,61 +161,61 @@
         aria-label="Tutup modal master data"
     ></button>
 
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg flex flex-col pointer-events-auto overflow-hidden">
-            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div>
-                    <h3 class="text-base font-bold text-slate-900">Quick Master Data</h3>
-                    <p class="text-xs text-slate-400">Tambah Customer, PIC Pelanggan, atau Katalog Produk baru</p>
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 pointer-events-none">
+        <div class="bg-white rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg max-h-[95vh] flex flex-col pointer-events-auto overflow-hidden">
+            <div class="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <h3 class="text-sm sm:text-base font-bold text-slate-900">Quick Master Data</h3>
+                    <p class="text-[11px] sm:text-xs text-slate-400 truncate">Tambah Customer, PIC Pelanggan, atau Katalog Produk baru</p>
                 </div>
-                <button type="button" onclick={close} class="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+                <button type="button" onclick={close} class="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 shrink-0">
                     <X class="w-4 h-4" />
                 </button>
             </div>
 
             <!-- Tabs -->
-            <div class="grid grid-cols-3 border-b border-slate-100 bg-slate-50/70 text-xs font-medium">
+            <div class="grid grid-cols-3 border-b border-slate-100 bg-slate-50/70 text-[11px] sm:text-xs font-medium">
                 <button
                     type="button"
                     onclick={() => { activeTab = 'customer'; errorMsg = ''; successMsg = ''; }}
-                    class="py-2.5 px-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer {activeTab === 'customer' ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="py-2.5 px-2 sm:px-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer {activeTab === 'customer' ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
-                    <Building2 class="w-3.5 h-3.5" />
-                    <span>Customer</span>
+                    <Building2 class="w-3.5 h-3.5 shrink-0" />
+                    <span class="truncate">Customer</span>
                 </button>
                 <button
                     type="button"
                     onclick={() => { activeTab = 'pic'; errorMsg = ''; successMsg = ''; }}
-                    class="py-2.5 px-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer {activeTab === 'pic' ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="py-2.5 px-2 sm:px-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer {activeTab === 'pic' ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
-                    <UserPlus class="w-3.5 h-3.5" />
-                    <span>PIC Customer</span>
+                    <UserPlus class="w-3.5 h-3.5 shrink-0" />
+                    <span class="truncate">PIC Customer</span>
                 </button>
                 <button
                     type="button"
                     onclick={() => { activeTab = 'product'; errorMsg = ''; successMsg = ''; }}
-                    class="py-2.5 px-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer {activeTab === 'product' ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
+                    class="py-2.5 px-2 sm:px-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors cursor-pointer {activeTab === 'product' ? 'border-slate-900 text-slate-900 bg-white font-semibold' : 'border-transparent text-slate-500 hover:text-slate-800'}"
                 >
-                    <PackagePlus class="w-3.5 h-3.5" />
-                    <span>Produk</span>
+                    <PackagePlus class="w-3.5 h-3.5 shrink-0" />
+                    <span class="truncate">Produk</span>
                 </button>
             </div>
 
             {#if errorMsg}
-                <div class="mx-6 mt-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <div class="mx-4 sm:mx-6 mt-3 sm:mt-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
                     <AlertCircle class="w-4 h-4 shrink-0" />
                     <span>{errorMsg}</span>
                 </div>
             {/if}
 
             {#if successMsg}
-                <div class="mx-6 mt-4 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                <div class="mx-4 sm:mx-6 mt-3 sm:mt-4 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
                     <CheckCircle2 class="w-4 h-4 shrink-0" />
                     <span>{successMsg}</span>
                 </div>
             {/if}
 
-            <div class="p-6 text-xs">
+            <div class="p-4 sm:p-6 text-xs overflow-y-auto">
                 {#if activeTab === 'customer'}
                     <form onsubmit={submitCustomer} class="flex flex-col gap-3.5">
                         <div>
@@ -223,7 +223,7 @@
                             <input id="mdCustName" type="text" required bind:value={custName} placeholder="Contoh: PT Bio Farma (Persero)" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-slate-400" />
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label for="mdCustSales" class="block font-semibold text-slate-700 mb-1">PIC Sales (Inisial) *</label>
                                 <select id="mdCustSales" required bind:value={custSalesInitial} class="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white outline-none focus:border-slate-400">
@@ -240,7 +240,7 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label for="mdCustSector" class="block font-semibold text-slate-700 mb-1">Sektor</label>
                                 <input id="mdCustSector" type="text" bind:value={custSector} placeholder="Farmasi / F&B / Lab" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-slate-400" />
@@ -273,7 +273,7 @@
                             </select>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label for="mdPicName" class="block font-semibold text-slate-700 mb-1">Nama PIC *</label>
                                 <input id="mdPicName" type="text" required bind:value={picName} placeholder="Contoh: Ibu Rina" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-slate-400" />
@@ -285,7 +285,7 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label for="mdPicPhone" class="block font-semibold text-slate-700 mb-1">No. Telepon / WA</label>
                                 <input id="mdPicPhone" type="text" bind:value={picPhone} placeholder="0812..." class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-slate-400" />
@@ -318,7 +318,7 @@
                             </select>
                         </div>
 
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label for="mdProdCat" class="block font-semibold text-slate-700 mb-1">No. Catalogue *</label>
                                 <input id="mdProdCat" type="text" required bind:value={prodCatalogue} placeholder="Contoh: 610005" class="w-full px-3 py-2 border border-slate-200 rounded-lg outline-none focus:border-slate-400 font-mono" />
