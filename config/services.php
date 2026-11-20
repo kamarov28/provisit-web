@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+
+    'google_calendar' => [
+        'enabled' => env('GOOGLE_CALENDAR_ENABLED', false),
+        'credentials_path' => env('GOOGLE_CALENDAR_CREDENTIALS_PATH', storage_path('app/google-calendar-service-account.json')),
+        'default_calendar_id' => env('GOOGLE_CALENDAR_ID'),
+        'team_calendars' => [
+            'YES' => env('GOOGLE_CALENDAR_ID_YES'),
+            'MOU' => env('GOOGLE_CALENDAR_ID_MOU'),
+        ],
+        'send_invites' => env('GOOGLE_CALENDAR_SEND_INVITES', false),
+    ],
 ];

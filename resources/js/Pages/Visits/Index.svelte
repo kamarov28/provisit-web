@@ -10,7 +10,8 @@
         Search,
         Filter,
         X,
-        RotateCcw
+        RotateCcw,
+        Database
     } from '@lucide/svelte';
     import { router } from '@inertiajs/svelte';
     import VisitCalendarView from '../../Components/Visits/VisitCalendarView.svelte';
@@ -35,9 +36,14 @@
     let calendarScale = $state('month'); // 'month' | 'week'
     let activeSavedView = $state('all'); // 'all' | 'upcoming' | 'followup' | 'completed'
 
-    let selectedVisit = $state(null);
+    let selectedVisitId = $state(null);
+    let selectedVisit = $derived(
+        selectedVisitId ? (visits.find(v => v.id === selectedVisitId) || null) : null
+    );
     let isDrawerOpen = $state(false);
     let wizardModal = $state(null);
+    let masterModal = $state(null);
+
 
     // Search & Quick Dropdowns
     let searchQuery = $state('');
@@ -288,14 +294,14 @@
     }
 
     function openVisitDetail(visit) {
-        selectedVisit = visit;
+        selectedVisitId = visit.id;
         isDrawerOpen = true;
     }
 
     function closeDrawer() {
         isDrawerOpen = false;
         setTimeout(() => {
-            selectedVisit = null;
+            selectedVisitId = null;
         }, 200);
     }
 
@@ -304,6 +310,15 @@
         wizardModal?.openEdit(visit);
     }
 
+    function handleDuplicateVisit(visit) {
+        isDrawerOpen = false;
+        wizardModal?.openDuplicate(visit);
+    }
+
+    function handleToggleActionPlan(plan) {
+        if (!plan?.id) return;
+        router.patch(`/action-plans/${plan.id}/toggle`, {}, { preserveScroll: true });
+    }
     function handleQuickAdd(dateStr) {
         wizardModal?.openNew(dateStr);
     }
@@ -375,15 +390,25 @@
                 </div>
             </div>
 
-            <!-- Mobile New Visit Button -->
-            <button
-                type="button"
-                onclick={() => wizardModal?.openNew()}
-                class="lg:hidden inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer shrink-0"
-            >
-                <Plus class="w-3.5 h-3.5" />
-                <span>Catat Visit</span>
-            </button>
+            <!-- Mobile Action Buttons -->
+            <div class="lg:hidden flex items-center gap-1.5 shrink-0">
+                <button
+                    type="button"
+                    onclick={() => masterModal?.open('customer')}
+                    title="Quick Master Data (Customer / PIC / Produk)"
+                    class="inline-flex items-center justify-center p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg transition-colors cursor-pointer"
+                >
+                    <Database class="w-4 h-4" />
+                </button>
+                <button
+                    type="button"
+                    onclick={() => wizardModal?.openNew()}
+                    class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
+                >
+                    <Plus class="w-3.5 h-3.5" />
+                    <span>Catat Visit</span>
+                </button>
+            </div>
         </div>
 
         <!-- View Switcher, Dropdown Filters & Desktop CTA -->
@@ -451,15 +476,27 @@
                 </select>
             </div>
 
-            <!-- Desktop New Visit Button -->
-            <button
-                type="button"
-                onclick={() => wizardModal?.openNew()}
-                class="hidden lg:flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
-            >
-                <Plus class="w-3.5 h-3.5" />
-                <span>Catat Visit</span>
-            </button>
+            <!-- Desktop Master Data & New Visit Buttons -->
+            <div class="hidden lg:flex items-center gap-2">
+                <button
+                    type="button"
+                    onclick={() => masterModal?.open('customer')}
+                    title="Tambah Customer, PIC, atau Produk baru"
+                    class="flex items-center gap-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                >
+                    <Database class="w-3.5 h-3.5 text-slate-500" />
+                    <span>Master Data</span>
+                </button>
+
+                <button
+                    type="button"
+                    onclick={() => wizardModal?.openNew()}
+                    class="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3.5 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
+                >
+                    <Plus class="w-3.5 h-3.5" />
+                    <span>Catat Visit</span>
+                </button>
+            </div>
         </div>
     </header>
 
@@ -658,7 +695,7 @@
                         >
                             <option value="">Semua Sales</option>
                             {#each salesUsers as u}
-                                <option value={String(u.id)}>{u.initial ? `${u.initial} — ${u.name}` : u.name}</option>
+                                <option value={String(u.id)}>{u.initial ? `${u.initial} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ${u.name}` : u.name}</option>
                             {/each}
                         </select>
                     </div>
@@ -674,7 +711,7 @@
                             <option value="NONE">None (Tanpa Support)</option>
                             {#each supportMarketingUsers as sup}
                                 {@const code = String(sup.initial || '').trim().toUpperCase()}
-                                <option value={code}>{code} — {sup.name}</option>
+                                <option value={code}>{code} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â {sup.name}</option>
                             {/each}
                         </select>
                     </div>
@@ -758,6 +795,8 @@
         open={isDrawerOpen}
         onClose={closeDrawer}
         onEdit={handleEditVisit}
+        onDuplicate={handleDuplicateVisit}
+        onToggleActionPlan={handleToggleActionPlan}
         {statusColor}
     />
 
@@ -767,5 +806,13 @@
         {customers}
         {salesUsers}
         {supportMarketingUsers}
+        onOpenMaster={(tab) => masterModal?.open(tab)}
+    />
+
+    <MasterDataModal
+        bind:this={masterModal}
+        {principals}
+        {customers}
+        {salesUsers}
     />
 </div>

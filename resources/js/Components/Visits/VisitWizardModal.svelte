@@ -14,7 +14,8 @@
         principals = [],
         customers = [],
         salesUsers = [],
-        supportMarketingUsers = []
+        supportMarketingUsers = [],
+        onOpenMaster
     } = $props();
 
     let isModalOpen = $state(false);
@@ -712,7 +713,18 @@
 
                         <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col gap-3">
                             <div>
-                                <label for="formCustomerId" class="block font-semibold text-slate-800 mb-1">Customer / Institusi *</label>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label for="formCustomerId" class="font-semibold text-slate-800">Customer / Institusi *</label>
+                                    {#if onOpenMaster}
+                                        <button
+                                            type="button"
+                                            onclick={() => onOpenMaster('customer')}
+                                            class="text-[11px] font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                                        >
+                                            + Customer baru
+                                        </button>
+                                    {/if}
+                                </div>
                                 <div class="relative">
                                     <input
                                         id="formCustomerId"
@@ -748,13 +760,24 @@
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
-                                    <label for="formCustomerPicId" class="block font-semibold text-slate-700 mb-1">PIC Customer</label>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label for="formCustomerPicId" class="font-semibold text-slate-700">PIC Customer</label>
+                                        {#if onOpenMaster}
+                                            <button
+                                                type="button"
+                                                onclick={() => onOpenMaster('pic')}
+                                                class="text-[11px] font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                                            >
+                                                + PIC baru
+                                            </button>
+                                        {/if}
+                                    </div>
                                     <select
                                         id="formCustomerPicId"
                                         bind:value={formCustomerPicId}
                                         class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
                                     >
-                                        <option value="">— Bebas / Belum Ditentukan —</option>
+                                        <option value="">â€” Bebas / Belum Ditentukan â€”</option>
                                         {#each availablePics as pic}
                                             <option value={pic.id}>{pic.name} {pic.position ? `(${pic.position})` : ''}</option>
                                         {/each}
@@ -944,7 +967,18 @@
 
                                 <div class="border-t border-slate-200 pt-3 flex flex-col gap-2">
                                     <div>
-                                        <label for="productSearch{index}" class="block font-semibold text-slate-700 mb-1">Produk Principal</label>
+                                        <div class="flex items-center justify-between mb-1">
+                                            <label for="productSearch{index}" class="font-semibold text-slate-700">Produk Principal</label>
+                                            {#if onOpenMaster}
+                                                <button
+                                                    type="button"
+                                                    onclick={() => onOpenMaster('product')}
+                                                    class="text-[11px] font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                                                >
+                                                    + Produk baru
+                                                </button>
+                                            {/if}
+                                        </div>
 
                                         {#if review.principal_id}
                                             <input
@@ -1096,9 +1130,9 @@
                                                 bind:value={plan.owner_user_id}
                                                 class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
                                             >
-                                                <option value="">— Pilih Owner —</option>
+                                                <option value="">â€” Pilih Owner â€”</option>
                                                 {#each salesUsers as u}
-                                                    <option value={String(u.id)}>{u.initial ? `${u.initial} — ${u.name}` : u.name}</option>
+                                                    <option value={String(u.id)}>{u.initial ? `${u.initial} â€” ${u.name}` : u.name}</option>
                                                 {/each}
                                             </select>
                                         </div>
