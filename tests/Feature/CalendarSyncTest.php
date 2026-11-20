@@ -16,7 +16,9 @@ class CalendarSyncTest extends TestCase
     use RefreshDatabase;
 
     private User $salesYes;
+
     private Customer $customer;
+
     private Principal $principal;
 
     protected function setUp(): void

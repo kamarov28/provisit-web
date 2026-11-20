@@ -18,10 +18,15 @@ class VisitWorkflowTest extends TestCase
     use RefreshDatabase;
 
     private User $salesUser;
+
     private User $supportUser;
+
     private Customer $customer;
+
     private CustomerPic $pic;
+
     private Principal $principal;
+
     private Product $product;
 
     protected function setUp(): void

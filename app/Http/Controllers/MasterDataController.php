@@ -24,7 +24,7 @@ class MasterDataController extends Controller
         $code = trim((string) ($validated['customer_code'] ?? ''));
         if ($code === '') {
             $nextNum = Customer::count() + 1;
-            $code = 'CUST-' . str_pad((string) $nextNum, 5, '0', STR_PAD_LEFT);
+            $code = 'CUST-'.str_pad((string) $nextNum, 5, '0', STR_PAD_LEFT);
         }
 
         $customer = Customer::create([

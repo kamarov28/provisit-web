@@ -2,11 +2,11 @@
 
 namespace App\Console\Commands;
 
+use DateTimeImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
-use DateTimeImmutable;
 use Throwable;
 
 class BackfillLegacyCustomerMaster extends Command
@@ -19,8 +19,9 @@ class BackfillLegacyCustomerMaster extends Command
     {
         $file = 'C:/laragon/www/PROvisit/DATABASE_CUSTOMER_v1.0.xlsx';
 
-        if (!file_exists($file)) {
+        if (! file_exists($file)) {
             $this->error("Workbook not found: {$file}");
+
             return self::FAILURE;
         }
 
@@ -28,8 +29,9 @@ class BackfillLegacyCustomerMaster extends Command
             $spreadsheet = IOFactory::load($file);
             $sheet = $spreadsheet->getSheetByName('Customer_by_Company');
 
-            if (!$sheet) {
+            if (! $sheet) {
                 $this->error('Sheet Customer_by_Company not found.');
+
                 return self::FAILURE;
             }
 
@@ -51,8 +53,9 @@ class BackfillLegacyCustomerMaster extends Command
             ];
 
             foreach ($required as $header) {
-                if (!isset($headerMap[$header])) {
+                if (! isset($headerMap[$header])) {
                     $this->error("Missing Excel column: {$header}");
+
                     return self::FAILURE;
                 }
             }
@@ -90,6 +93,7 @@ class BackfillLegacyCustomerMaster extends Command
 
                 if ($name === '') {
                     $incomplete++;
+
                     continue;
                 }
 
@@ -97,13 +101,15 @@ class BackfillLegacyCustomerMaster extends Command
 
                 if (isset($seen[$key])) {
                     $this->warn("Duplicate Customer ID in Excel: {$customerCode}");
+
                     continue;
                 }
 
                 $seen[$key] = true;
 
-                if (!$customers->has($key)) {
+                if (! $customers->has($key)) {
                     $unmatched[] = $customerCode;
+
                     continue;
                 }
 
@@ -156,16 +162,17 @@ class BackfillLegacyCustomerMaster extends Command
             );
 
             $this->newLine();
-            $this->line('Matched customers: ' . count($updates));
-            $this->line('Unmatched customer IDs: ' . count($unmatched));
-            $this->line('Incomplete rows (no customer name): ' . $incomplete);
+            $this->line('Matched customers: '.count($updates));
+            $this->line('Unmatched customer IDs: '.count($unmatched));
+            $this->line('Incomplete rows (no customer name): '.$incomplete);
 
             if (count($unmatched) > 0) {
-                $this->warn('Unmatched IDs: ' . implode(', ', $unmatched));
+                $this->warn('Unmatched IDs: '.implode(', ', $unmatched));
             }
 
-            if (!$this->option('apply')) {
+            if (! $this->option('apply')) {
                 $this->warn('DRY-RUN ONLY. No database changes were made.');
+
                 return self::SUCCESS;
             }
 
@@ -183,11 +190,12 @@ class BackfillLegacyCustomerMaster extends Command
             });
 
             $this->info('Customer Master backfill completed successfully.');
-            $this->info('Updated customers: ' . count($updates));
+            $this->info('Updated customers: '.count($updates));
 
             return self::SUCCESS;
         } catch (Throwable $e) {
             $this->error($e->getMessage());
+
             return self::FAILURE;
         }
     }

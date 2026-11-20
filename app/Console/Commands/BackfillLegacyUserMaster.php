@@ -17,15 +17,17 @@ class BackfillLegacyUserMaster extends Command
     {
         $file = 'C:/laragon/www/PROvisit/PROVisit_Backend_DB_v1.0.xlsx';
 
-        if (!file_exists($file)) {
+        if (! file_exists($file)) {
             $this->error("Workbook not found: {$file}");
+
             return self::FAILURE;
         }
 
         $sheet = IOFactory::load($file)->getSheetByName('USER_MASTER');
 
-        if (!$sheet) {
+        if (! $sheet) {
             $this->error('Sheet USER_MASTER not found.');
+
             return self::FAILURE;
         }
 
@@ -33,6 +35,7 @@ class BackfillLegacyUserMaster extends Command
 
         if (empty($rows)) {
             $this->error('USER_MASTER is empty.');
+
             return self::FAILURE;
         }
 
@@ -63,6 +66,7 @@ class BackfillLegacyUserMaster extends Command
 
             if ($index === false) {
                 $this->error("Missing USER_MASTER column: {$column}");
+
                 return self::FAILURE;
             }
 
@@ -95,6 +99,7 @@ class BackfillLegacyUserMaster extends Command
 
             if ($legacyName === '') {
                 $invalidRows[] = $email;
+
                 continue;
             }
 
@@ -102,8 +107,9 @@ class BackfillLegacyUserMaster extends Command
                 ->whereRaw('LOWER(email) = ?', [$email])
                 ->first();
 
-            if (!$user) {
+            if (! $user) {
                 $unmatched[] = $email;
+
                 continue;
             }
 
@@ -156,10 +162,10 @@ class BackfillLegacyUserMaster extends Command
         );
 
         $this->newLine();
-        $this->info('Matched users: ' . count($updates));
-        $this->info('Unmatched emails: ' . count($unmatched));
-        $this->info('Invalid rows: ' . count($invalidRows));
-        $this->info('Unsupported roles: ' . count($unsupportedRoles));
+        $this->info('Matched users: '.count($updates));
+        $this->info('Unmatched emails: '.count($unmatched));
+        $this->info('Invalid rows: '.count($invalidRows));
+        $this->info('Unsupported roles: '.count($unsupportedRoles));
 
         if ($unsupportedRoles) {
             $this->warn('===== ROLES PRESERVED WITHOUT MAPPING =====');
@@ -171,12 +177,13 @@ class BackfillLegacyUserMaster extends Command
         }
 
         if ($unmatched) {
-            $this->warn('Unmatched emails: ' . implode(', ', $unmatched));
+            $this->warn('Unmatched emails: '.implode(', ', $unmatched));
         }
 
-        if (!$this->option('apply')) {
+        if (! $this->option('apply')) {
             $this->warn('DRY-RUN ONLY. No database changes were made.');
             $this->comment('Run with --apply after reviewing the preview.');
+
             return self::SUCCESS;
         }
 
@@ -208,12 +215,13 @@ class BackfillLegacyUserMaster extends Command
                 }
             });
         } catch (Throwable $e) {
-            $this->error('Backfill failed: ' . $e->getMessage());
+            $this->error('Backfill failed: '.$e->getMessage());
+
             return self::FAILURE;
         }
 
         $this->info('User Master backfill completed successfully.');
-        $this->info('Updated users: ' . count($updates));
+        $this->info('Updated users: '.count($updates));
 
         return self::SUCCESS;
     }

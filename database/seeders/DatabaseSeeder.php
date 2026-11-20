@@ -2,15 +2,15 @@
 
 namespace Database\Seeders;
 
+use App\Models\ActionPlan;
 use App\Models\Customer;
 use App\Models\CustomerPic;
 use App\Models\Principal;
+use App\Models\PrincipalReview;
+use App\Models\PrincipalReviewProduct;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Visit;
-use App\Models\PrincipalReview;
-use App\Models\PrincipalReviewProduct;
-use App\Models\ActionPlan;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 

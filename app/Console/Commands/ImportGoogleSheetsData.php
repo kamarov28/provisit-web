@@ -6,31 +6,33 @@ use App\Models\ActionPlan;
 use App\Models\Customer;
 use App\Models\CustomerPic;
 use App\Models\Principal;
+use App\Models\PrincipalReview;
+use App\Models\PrincipalReviewProduct;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Visit;
-use App\Models\PrincipalReview;
-use App\Models\PrincipalReviewProduct;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ImportGoogleSheetsData extends Command
 {
     protected $signature = 'provisit:import-sheets';
+
     protected $description = 'Import master data and visit logs from Google Sheets XLSX files';
 
     public function handle()
     {
         $autoload = 'C:/laragon/www/mockup-prolabios/vendor/autoload.php';
-        if (!file_exists($autoload)) {
+        if (! file_exists($autoload)) {
             $this->error('Composer vendor autoload not found in mockup-prolabios');
+
             return 1;
         }
         require_once $autoload;
         spl_autoload_register(function ($class) {
             if (str_starts_with($class, 'App\\Models\\')) {
-                $file = 'C:/laragon/www/provisit-web/' . str_replace('\\', '/', $class) . '.php';
+                $file = 'C:/laragon/www/provisit-web/'.str_replace('\\', '/', $class).'.php';
                 if (file_exists($file)) {
                     require_once $file;
                 }
@@ -41,8 +43,9 @@ class ImportGoogleSheetsData extends Command
         $customerFile = 'C:/laragon/www/PROvisit/DATABASE_CUSTOMER_v1.0.xlsx';
         $productFile = 'C:/laragon/www/PROvisit/DATABASE_PRODUCT_v1.0.xlsx';
 
-        if (!file_exists($backendFile) || !file_exists($customerFile) || !file_exists($productFile)) {
+        if (! file_exists($backendFile) || ! file_exists($customerFile) || ! file_exists($productFile)) {
             $this->error('One or more XLSX files are missing in C:/laragon/www/PROvisit/');
+
             return 1;
         }
 
@@ -50,7 +53,7 @@ class ImportGoogleSheetsData extends Command
 
         // 1. IMPORT USERS
         $this->info('1/5 Importing Users...');
-        $ssBackend = \PhpOffice\PhpSpreadsheet\IOFactory::load($backendFile);
+        $ssBackend = IOFactory::load($backendFile);
         $userSheet = $ssBackend->getSheetByName('USER_MASTER');
         if ($userSheet) {
             $userRows = $userSheet->toArray();
@@ -59,7 +62,9 @@ class ImportGoogleSheetsData extends Command
                 $r = $userRows[$i];
                 $email = trim($r[1] ?? '');
                 $name = trim($r[3] ?? '');
-                if (!$email || !$name) continue;
+                if (! $email || ! $name) {
+                    continue;
+                }
 
                 $role = strtolower(trim($r[6] ?? 'sales'));
                 $team = trim($r[5] ?? '');
@@ -77,11 +82,11 @@ class ImportGoogleSheetsData extends Command
                 );
             }
         }
-        $this->info('Users imported: ' . User::count());
+        $this->info('Users imported: '.User::count());
 
         // 2. IMPORT CUSTOMERS & PICS
         $this->info('2/5 Importing Customers & PICs...');
-        $ssCust = \PhpOffice\PhpSpreadsheet\IOFactory::load($customerFile);
+        $ssCust = IOFactory::load($customerFile);
         $compSheet = $ssCust->getSheetByName('Customer_by_Company');
         if ($compSheet) {
             $compRows = $compSheet->toArray();
@@ -91,7 +96,9 @@ class ImportGoogleSheetsData extends Command
                 $r = $compRows[$i];
                 $code = trim($r[0] ?? '');
                 $name = trim($r[2] ?? '');
-                if (!$code || !$name) continue;
+                if (! $code || ! $name) {
+                    continue;
+                }
 
                 Customer::updateOrCreate(
                     ['customer_code' => $code],
@@ -103,7 +110,7 @@ class ImportGoogleSheetsData extends Command
                 );
             }
         }
-        $this->info('Customers imported: ' . Customer::count());
+        $this->info('Customers imported: '.Customer::count());
 
         $picSheet = $ssCust->getSheetByName('Customer_by_PIC');
         if ($picSheet) {
@@ -114,7 +121,9 @@ class ImportGoogleSheetsData extends Command
                 $r = $picRows[$i];
                 $code = trim($r[0] ?? '');
                 $picName = trim($r[3] ?? '');
-                if (!$code || !$picName || !isset($custMap[$code])) continue;
+                if (! $code || ! $picName || ! isset($custMap[$code])) {
+                    continue;
+                }
 
                 CustomerPic::updateOrCreate(
                     [
@@ -129,11 +138,11 @@ class ImportGoogleSheetsData extends Command
                 );
             }
         }
-        $this->info('Customer PICs imported: ' . CustomerPic::count());
+        $this->info('Customer PICs imported: '.CustomerPic::count());
 
         // 3. IMPORT PRINCIPALS & PRODUCTS
         $this->info('3/5 Importing Principals & Products...');
-        $ssProd = \PhpOffice\PhpSpreadsheet\IOFactory::load($productFile);
+        $ssProd = IOFactory::load($productFile);
         $prodSheet = $ssProd->getSheetByName('Product_Details');
         if ($prodSheet) {
             $prodRows = $prodSheet->toArray();
@@ -144,9 +153,11 @@ class ImportGoogleSheetsData extends Command
                 $catalogue = trim($r[0] ?? '');
                 $desc = trim($r[1] ?? '');
                 $prinName = trim($r[3] ?? '');
-                if (!$catalogue || !$prinName) continue;
+                if (! $catalogue || ! $prinName) {
+                    continue;
+                }
 
-                if (!isset($principalMap[$prinName])) {
+                if (! isset($principalMap[$prinName])) {
                     $p = Principal::firstOrCreate(
                         ['name' => $prinName],
                         ['country' => 'Global', 'is_active' => true]
@@ -158,7 +169,7 @@ class ImportGoogleSheetsData extends Command
                     ['catalogue' => $catalogue],
                     [
                         'principal_id' => $principalMap[$prinName],
-                        'name' => $catalogue . ' - ' . (mb_substr($desc, 0, 100)),
+                        'name' => $catalogue.' - '.(mb_substr($desc, 0, 100)),
                         'description' => $desc,
                         'category' => trim($r[5] ?? '') ?: null,
                         'unit' => trim($r[2] ?? '') ?: 'Unit',
@@ -167,7 +178,7 @@ class ImportGoogleSheetsData extends Command
                 );
             }
         }
-        $this->info('Principals: ' . Principal::count() . ', Products: ' . Product::count());
+        $this->info('Principals: '.Principal::count().', Products: '.Product::count());
 
         // 4. IMPORT VISITS
         $this->info('4/5 Importing Visits...');
@@ -175,14 +186,16 @@ class ImportGoogleSheetsData extends Command
         $custByCodeMap = Customer::pluck('id', 'customer_code')->toArray();
         $userMap = User::pluck('id', 'name')->toArray();
         $userByInitialMap = []; // we can check by sales user
-        
+
         if ($visitSheet) {
             $vRows = $visitSheet->toArray();
             for ($i = 1; $i < count($vRows); $i++) {
                 $r = $vRows[$i];
                 $vId = trim($r[0] ?? '');
                 $title = trim($r[1] ?? '');
-                if (!$vId || !$title) continue;
+                if (! $vId || ! $title) {
+                    continue;
+                }
 
                 $rawDate = trim($r[2] ?? '');
                 $visitDate = null;
@@ -203,7 +216,7 @@ class ImportGoogleSheetsData extends Command
                 $endTime = $rawEndTime ? date('H:i:s', strtotime($rawEndTime)) : null;
 
                 $status = trim($r[14] ?? 'Planned');
-                $statusFormatted = match(strtolower($status)) {
+                $statusFormatted = match (strtolower($status)) {
                     'completed' => 'Completed',
                     'confirmed' => 'Confirmed',
                     'cancelled' => 'Cancelled',
@@ -235,7 +248,7 @@ class ImportGoogleSheetsData extends Command
                 );
             }
         }
-        $this->info('Visits imported: ' . Visit::count());
+        $this->info('Visits imported: '.Visit::count());
 
         // 5. IMPORT PRINCIPAL REVIEWS & ACTION PLANS
         $this->info('5/5 Importing Reviews & Action Plans...');
@@ -250,10 +263,12 @@ class ImportGoogleSheetsData extends Command
                 $r = $revRows[$i];
                 $vCode = trim($r[1] ?? '');
                 $prinName = trim($r[2] ?? '');
-                if (!$vCode || !$prinName || !isset($visitByCodeMap[$vCode])) continue;
+                if (! $vCode || ! $prinName || ! isset($visitByCodeMap[$vCode])) {
+                    continue;
+                }
 
                 $pId = $principalByNameMap[$prinName] ?? null;
-                if (!$pId) {
+                if (! $pId) {
                     $p = Principal::firstOrCreate(['name' => $prinName], ['is_active' => true]);
                     $pId = $p->id;
                     $principalByNameMap[$prinName] = $pId;
@@ -298,7 +313,9 @@ class ImportGoogleSheetsData extends Command
                 $r = $actRows[$i];
                 $vCode = trim($r[1] ?? '');
                 $task = trim($r[2] ?? '');
-                if (!$vCode || !$task || !isset($visitByCodeMap[$vCode])) continue;
+                if (! $vCode || ! $task || ! isset($visitByCodeMap[$vCode])) {
+                    continue;
+                }
 
                 $rawDueDate = trim($r[4] ?? '');
                 $dueDate = null;
@@ -325,6 +342,7 @@ class ImportGoogleSheetsData extends Command
         }
 
         $this->info('Migration completed successfully!');
+
         return 0;
     }
 }

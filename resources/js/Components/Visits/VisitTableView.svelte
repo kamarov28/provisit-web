@@ -41,7 +41,7 @@
                     {visit.visit_code}
                 </span>
 
-                <div onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                <div role="presentation" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
                     <select
                         value={visit.status}
                         aria-label="Ubah status {visit.visit_code}"
@@ -80,6 +80,7 @@
 
             <!-- Bottom Row: Inline Date/Time & Sales PIC -->
             <div
+                role="presentation"
                 class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-[11px]"
                 onclick={(e) => e.stopPropagation()}
                 onkeydown={(e) => e.stopPropagation()}
@@ -87,7 +88,7 @@
                 {#if locked}
                     <div class="flex items-center gap-1.5 text-slate-600">
                         <CalendarIcon class="w-3.5 h-3.5 text-slate-400" />
-                        <span>{visit.visit_date} • {currentStartTime} WIB</span>
+                        <span>{visit.visit_date} â€¢ {currentStartTime} WIB</span>
                     </div>
                 {:else}
                     <div class="flex items-center gap-1.5">

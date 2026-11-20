@@ -101,7 +101,7 @@
                             </span>
 
                             <!-- Mobile/Tablet Touch Status Switcher -->
-                            <div class="lg:hidden" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+                            <div role="presentation" class="lg:hidden" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
                                 <select
                                     value={visit.status}
                                     aria-label="Pindah status {visit.visit_code}"

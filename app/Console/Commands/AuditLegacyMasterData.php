@@ -19,8 +19,9 @@ class AuditLegacyMasterData extends Command
         $customerFile = 'C:/laragon/www/PROvisit/DATABASE_CUSTOMER_v1.0.xlsx';
 
         foreach ([$backendFile, $customerFile] as $file) {
-            if (!file_exists($file)) {
+            if (! file_exists($file)) {
                 $this->error("Workbook not found: {$file}");
+
                 return self::FAILURE;
             }
         }
@@ -37,8 +38,9 @@ class AuditLegacyMasterData extends Command
                 ->getSheetByName('Customer_by_Company')
                 ?->toArray(null, true, true, false);
 
-            if (!$userRows || !$customerRows) {
+            if (! $userRows || ! $customerRows) {
                 $this->error('Required worksheet is missing.');
+
                 return self::FAILURE;
             }
 
@@ -48,6 +50,7 @@ class AuditLegacyMasterData extends Command
             return self::SUCCESS;
         } catch (Throwable $e) {
             $this->error($e->getMessage());
+
             return self::FAILURE;
         }
     }
@@ -65,6 +68,7 @@ class AuditLegacyMasterData extends Command
 
         if ($emailIndex === false || $initialIndex === false || $nameIndex === false) {
             $this->error('USER_MASTER headers are incomplete.');
+
             return;
         }
 
@@ -80,11 +84,13 @@ class AuditLegacyMasterData extends Command
 
             if ($email === '' || $initial === '' || $name === '') {
                 $invalid++;
+
                 continue;
             }
 
             if (isset($seen[$email])) {
                 $this->warn("Duplicate USER_MASTER email: {$email}");
+
                 continue;
             }
 
@@ -142,6 +148,7 @@ class AuditLegacyMasterData extends Command
             $statusIndex === false
         ) {
             $this->error('Customer_by_Company headers are incomplete.');
+
             return;
         }
 
@@ -163,6 +170,7 @@ class AuditLegacyMasterData extends Command
 
             if (isset($seen[$code])) {
                 $this->warn("Duplicate customer ID: {$code}");
+
                 continue;
             }
 
@@ -170,6 +178,7 @@ class AuditLegacyMasterData extends Command
 
             if ($name === '') {
                 $incomplete++;
+
                 continue;
             }
 

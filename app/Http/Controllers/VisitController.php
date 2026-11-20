@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpsertVisitRequest;
 use App\Models\ActionPlan;
 use App\Models\AuditLog;
 use App\Models\Customer;
@@ -12,11 +13,10 @@ use App\Models\User;
 use App\Models\Visit;
 use App\Services\CalendarSyncService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-
+use Inertia\Inertia;
 
 class VisitController extends Controller
 {
@@ -34,9 +34,9 @@ class VisitController extends Controller
             'actionPlans.owner:id,name',
             'auditLogs.user:id,name,initial',
         ])
-        ->where('is_archived', false)
-        ->orderBy('visit_date', 'desc')
-        ->orderBy('start_time', 'asc');
+            ->where('is_archived', false)
+            ->orderBy('visit_date', 'desc')
+            ->orderBy('start_time', 'asc');
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -106,7 +106,7 @@ class VisitController extends Controller
             ->orderBy('visit_date', 'asc')
             ->get();
 
-        $icsContent = $this->calendarSync->buildIcsFeed($visits, 'PROvisit — Jadwal Kunjungan Sales');
+        $icsContent = $this->calendarSync->buildIcsFeed($visits, 'PROvisit - Jadwal Kunjungan Sales');
 
         return response($icsContent, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
@@ -117,7 +117,7 @@ class VisitController extends Controller
     public function visitIcs(Visit $visit)
     {
         $visit->load(['primarySalesUser:id,name', 'principalReviews']);
-        $icsContent = $this->calendarSync->buildIcsFeed([$visit], "PROvisit — {$visit->visit_code}");
+        $icsContent = $this->calendarSync->buildIcsFeed([$visit], "PROvisit - {$visit->visit_code}");
 
         return response($icsContent, 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
@@ -148,23 +148,9 @@ class VisitController extends Controller
         return response()->json($products);
     }
 
-    public function store(Request $request)
+    public function store(UpsertVisitRequest $request)
     {
-        $validated = $this->validateVisitPayload($request, false);
-
-        if ($validated['status'] === 'Completed') {
-            if (trim((string) ($validated['postvisit_result'] ?? '')) === '') {
-                return back()->withErrors([
-                    'postvisit_result' => 'Post-visit Result wajib dilengkapi jika status kunjungan Completed.',
-                ]);
-            }
-
-            if (empty($validated['action_plans'])) {
-                return back()->withErrors([
-                    'action_plans' => 'Action Plan wajib diisi jika status kunjungan Completed.',
-                ]);
-            }
-        }
+        $validated = $request->validated();
 
         $customer = Customer::findOrFail($validated['customer_id']);
         $pic = $this->resolveCustomerPic($customer, $validated['customer_pic_id'] ?? null);
@@ -183,7 +169,7 @@ class VisitController extends Controller
 
             $countThisYear = Visit::whereYear('created_at', now()->year)->count() + 1;
 
-            $visitCode = 'VST-' . now()->year . '-' .
+            $visitCode = 'VST-'.now()->year.'-'.
                 str_pad($countThisYear, 6, '0', STR_PAD_LEFT);
 
             $visit = Visit::create([
@@ -235,23 +221,9 @@ class VisitController extends Controller
             ->with('success', "Visit {$visit->visit_code} berhasil disimpan.");
     }
 
-    public function update(Request $request, Visit $visit)
+    public function update(UpsertVisitRequest $request, Visit $visit)
     {
-        $validated = $this->validateVisitPayload($request, true);
-
-        if ($validated['status'] === 'Completed') {
-            if (trim((string) ($validated['postvisit_result'] ?? '')) === '') {
-                return back()->withErrors([
-                    'postvisit_result' => 'Post-visit Result wajib dilengkapi jika status kunjungan Completed.',
-                ]);
-            }
-
-            if (empty($validated['action_plans'])) {
-                return back()->withErrors([
-                    'action_plans' => 'Action Plan wajib diisi jika status kunjungan Completed.',
-                ]);
-            }
-        }
+        $validated = $request->validated();
 
         $customer = Customer::findOrFail($validated['customer_id']);
         $pic = $this->resolveCustomerPic($customer, $validated['customer_pic_id'] ?? null);
@@ -382,7 +354,7 @@ class VisitController extends Controller
 
         return redirect()
             ->route('visits.index')
-            ->with('success', "Jadwal {$visit->visit_code} diperbarui ke {$newDate}" . ($newTime ? " ({$newTime})" : '') . '.');
+            ->with('success', "Jadwal {$visit->visit_code} diperbarui ke {$newDate}".($newTime ? " ({$newTime})" : '').'.');
     }
 
     public function updateStatus(Request $request, Visit $visit)
@@ -405,7 +377,7 @@ class VisitController extends Controller
             $hasResult = trim((string) $visit->postvisit_result) !== '';
             $hasActionPlan = $visit->actionPlans()->exists();
 
-            if (!$hasResult || !$hasActionPlan) {
+            if (! $hasResult || ! $hasActionPlan) {
                 return back()->withErrors([
                     'status' => 'Untuk mengubah status ke Completed, lengkapi Post-visit Result dan Action Plan terlebih dahulu.',
                 ]);
@@ -469,68 +441,6 @@ class VisitController extends Controller
             ->with('success', "Action Plan ditandai {$newStatus}.");
     }
 
-    private function validateVisitPayload(Request $request, bool $isUpdate): array
-    {
-        $allowedStatuses = $isUpdate
-            ? ['Draft', 'Planned', 'Confirmed', 'Completed', 'Cancelled']
-            : ['Draft', 'Planned'];
-
-        $allowedSupportInitials = User::where('is_active', true)
-            ->whereNotNull('initial')
-            ->where('initial', '!=', '')
-            ->where('role', '!=', 'sales')
-            ->pluck('initial')
-            ->map(fn ($init) => strtoupper(trim((string) $init)))
-            ->unique()
-            ->values()
-            ->all();
-
-        return $request->validate([
-            'title' => 'required|string|max:255',
-            'visit_date' => 'required|date',
-            'start_time' => 'required|string',
-            'visit_type' => 'required|string',
-            'visit_purpose' => 'nullable|string',
-            'customer_id' => 'required|exists:customers,id',
-            'customer_pic_id' => 'nullable|exists:customer_pics,id',
-            'support_marketing' => 'nullable|array',
-            'support_marketing.*' => [
-                'string',
-                Rule::in($allowedSupportInitials),
-            ],
-            'agenda' => 'nullable|string',
-            'previsit_notes' => 'nullable|string',
-            'status' => [
-                'required',
-                Rule::in($allowedStatuses),
-            ],
-            'postvisit_result' => 'nullable|string',
-
-            'principal_reviews' => 'required|array|min:1',
-            'principal_reviews.*.principal_id' => [
-                'required',
-                'integer',
-                Rule::exists('principals', 'id')->where('is_active', true),
-            ],
-            'principal_reviews.*.principal_name' => 'nullable|string',
-            'principal_reviews.*.exposure_type' => 'nullable|string',
-            'principal_reviews.*.opportunity_status' => 'nullable|string',
-            'principal_reviews.*.notes' => 'nullable|string',
-            'principal_reviews.*.products' => 'nullable|array',
-            'principal_reviews.*.products.*.product_id' => [
-                'required',
-                'integer',
-                'exists:products,id',
-            ],
-
-            'action_plans' => 'nullable|array',
-            'action_plans.*.task_description' => 'required|string',
-            'action_plans.*.owner_user_id' => 'nullable|exists:users,id',
-            'action_plans.*.due_date' => 'nullable|date',
-            'action_plans.*.priority' => 'nullable|string',
-        ]);
-    }
-
     private function normalizeSupportMarketing(array $rawList): array
     {
         return collect($rawList)
@@ -551,7 +461,7 @@ class VisitController extends Controller
             ->whereKey($customerPicId)
             ->first();
 
-        if (!$pic) {
+        if (! $pic) {
             throw ValidationException::withMessages([
                 'customer_pic_id' => 'PIC Customer tidak terdaftar pada Customer yang dipilih.',
             ]);
@@ -573,7 +483,7 @@ class VisitController extends Controller
             ->select('id')
             ->first();
 
-        if (!$salesUser) {
+        if (! $salesUser) {
             throw ValidationException::withMessages([
                 'customer_id' => "PIC Sales dengan initial {$salesInitial} tidak ditemukan atau tidak aktif.",
             ]);
@@ -591,7 +501,7 @@ class VisitController extends Controller
             $principal = Principal::where('is_active', true)
                 ->find($revData['principal_id']);
 
-            if (!$principal) {
+            if (! $principal) {
                 throw ValidationException::withMessages([
                     'principal_reviews' => 'Principal tidak ditemukan atau sudah tidak aktif.',
                 ]);
@@ -654,7 +564,7 @@ class VisitController extends Controller
             }
         }
 
-        if (!empty($validated['action_plans'])) {
+        if (! empty($validated['action_plans'])) {
             foreach ($validated['action_plans'] as $actData) {
                 $visit->actionPlans()->create([
                     'task_description' => $actData['task_description'],
