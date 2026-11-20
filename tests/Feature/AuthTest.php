@@ -6,7 +6,6 @@ use App\Models\Customer;
 use App\Models\User;
 use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -23,7 +22,7 @@ class AuthTest extends TestCase
         $this->marketingUser = User::create([
             'name' => 'Marketing Prolabios',
             'email' => 'marketing@prolabios.com',
-            'password' => bcrypt('password'),
+            'password' => Hash::make('Prolabios#2026!'),
             'role' => 'admin',
             'team' => 'MANAGEMENT',
             'initial' => 'MKT',
@@ -42,38 +41,22 @@ class AuthTest extends TestCase
         $this->post('/master/customers', [])->assertRedirect('/login');
     }
 
-    public function test_marketing_email_can_request_and_verify_otp_to_login(): void
+    public function test_marketing_user_can_login_with_email_and_password(): void
     {
         $this->get('/login')->assertStatus(200);
 
-        $sendRes = $this->post('/login/send-code', [
+        // Password salah ditolak
+        $this->post('/login', [
             'email' => 'marketing@prolabios.com',
-        ]);
-        $sendRes->assertRedirect();
-
-        // Simulasikan OTP yang tersimpan di cache
-        $cacheKey = 'provisit_login_otp:'.sha1('marketing@prolabios.com');
-        $this->assertTrue(Cache::has($cacheKey));
-
-        Cache::put($cacheKey, [
-            'hash' => Hash::make('123456'),
-            'user_id' => $this->marketingUser->id,
-            'attempts' => 0,
-        ], now()->addMinutes(10));
-
-        // Kode salah ditolak
-        $this->post('/login/verify', [
-            'email' => 'marketing@prolabios.com',
-            'code' => '999999',
-        ])->assertSessionHasErrors('code');
+            'password' => 'wrong-password',
+        ])->assertSessionHasErrors('email');
         $this->assertGuest();
 
-        // Kode benar berhasil login & redirect ke dashboard
-        $verifyRes = $this->post('/login/verify', [
+        // Password benar berhasil login
+        $this->post('/login', [
             'email' => 'marketing@prolabios.com',
-            'code' => '123456',
-        ]);
-        $verifyRes->assertRedirect('/');
+            'password' => 'Prolabios#2026!',
+        ])->assertRedirect('/');
         $this->assertAuthenticatedAs($this->marketingUser);
 
         // Logout mengakhiri sesi
@@ -81,24 +64,22 @@ class AuthTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_unregistered_or_inactive_email_cannot_request_login_code(): void
+    public function test_inactive_user_cannot_login(): void
     {
-        $this->post('/login/send-code', [
-            'email' => 'orang.luar@example.com',
-        ])->assertSessionHasErrors('email');
-
         $inactive = User::create([
             'name' => 'Ex Sales',
             'email' => 'ex@prolabios.com',
-            'password' => bcrypt('password'),
+            'password' => Hash::make('Prolabios#2026!'),
             'role' => 'sales',
             'initial' => 'EX',
             'is_active' => false,
         ]);
 
-        $this->post('/login/send-code', [
+        $this->post('/login', [
             'email' => $inactive->email,
+            'password' => 'Prolabios#2026!',
         ])->assertSessionHasErrors('email');
+        $this->assertGuest();
     }
 
     public function test_visit_policy_restricts_regular_sales_while_allowing_marketing_master(): void
@@ -106,7 +87,7 @@ class AuthTest extends TestCase
         $salesA = User::create([
             'name' => 'Sales A',
             'email' => 'sales.a@prolabios.com',
-            'password' => bcrypt('password'),
+            'password' => Hash::make('Prolabios#2026!'),
             'role' => 'sales',
             'initial' => 'SA1',
             'is_active' => true,
@@ -117,7 +98,7 @@ class AuthTest extends TestCase
         $salesB = User::create([
             'name' => 'Sales B',
             'email' => 'sales.b@prolabios.com',
-            'password' => bcrypt('password'),
+            'password' => Hash::make('Prolabios#2026!'),
             'role' => 'sales',
             'initial' => 'SB1',
             'is_active' => true,
@@ -143,12 +124,10 @@ class AuthTest extends TestCase
             'status' => 'Planned',
         ]);
 
-        // Sales B tidak boleh mengubah status visit milik Sales A (403 Forbidden)
         $this->actingAs($salesB)
             ->patch("/visits/{$visitA->id}/status", ['status' => 'Confirmed'])
             ->assertStatus(403);
 
-        // Akun utama marketing@prolabios.com boleh mengelola semua visit
         $this->actingAs($this->marketingUser)
             ->patch("/visits/{$visitA->id}/status", ['status' => 'Confirmed'])
             ->assertRedirect(route('visits.index'));

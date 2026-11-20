@@ -5,15 +5,12 @@ use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\VisitController;
 use Illuminate\Support\Facades\Route;
 
-// Guest Authentication (Email-Only OTP Login)
+// Guest Authentication (Email & Password Login)
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
-    Route::post('/login/send-code', [AuthController::class, 'sendCode'])
+    Route::post('/login', [AuthController::class, 'login'])
         ->middleware('throttle:10,1')
-        ->name('login.send-code');
-    Route::post('/login/verify', [AuthController::class, 'verifyCode'])
-        ->middleware('throttle:15,1')
-        ->name('login.verify');
+        ->name('login.attempt');
 });
 
 Route::post('/logout', [AuthController::class, 'logout'])
