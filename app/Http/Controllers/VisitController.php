@@ -38,6 +38,7 @@ class VisitController extends Controller
             'customer:id,name,customer_code,city,sector',
             'customerPic:id,name,position,phone',
             'primarySalesUser:id,name,email,team,initial',
+            'creator:id,name,initial',
             'principalReviews.products',
             'actionPlans.owner:id,name',
             'auditLogs.user:id,name,initial',
@@ -180,6 +181,7 @@ class VisitController extends Controller
         $pic = $this->resolveCustomerPic($customer, $validated['customer_pic_id'] ?? null);
         $salesUserId = $this->resolveSalesUserId($customer);
         $supportMarketing = $this->normalizeSupportMarketing($validated['support_marketing'] ?? []);
+        $companionSales = $this->normalizeSupportMarketing($validated['companion_sales'] ?? []);
 
         $visit = DB::transaction(function () use (
             $request,
@@ -187,7 +189,8 @@ class VisitController extends Controller
             $customer,
             $pic,
             $salesUserId,
-            $supportMarketing
+            $supportMarketing,
+            $companionSales,
         ) {
             [$productsByReview, $principalNames] = $this->validateAndLoadReviews($validated['principal_reviews']);
 
@@ -208,6 +211,7 @@ class VisitController extends Controller
                 'pic_position_snapshot' => $pic?->position,
                 'primary_sales_user_id' => $salesUserId,
                 'support_marketing' => $supportMarketing,
+                'companion_sales' => $companionSales,
                 'visit_type' => $validated['visit_type'],
                 'visit_purpose' => $validated['visit_purpose'] ?? 'Product Introduction / Presentation',
                 'agenda' => $validated['agenda'] ?? null,
@@ -255,6 +259,7 @@ class VisitController extends Controller
         $pic = $this->resolveCustomerPic($customer, $validated['customer_pic_id'] ?? null);
         $salesUserId = $this->resolveSalesUserId($customer);
         $supportMarketing = $this->normalizeSupportMarketing($validated['support_marketing'] ?? []);
+        $companionSales = $this->normalizeSupportMarketing($validated['companion_sales'] ?? []);
 
         $oldSnapshot = [
             'title' => $visit->title,
@@ -271,6 +276,7 @@ class VisitController extends Controller
             $pic,
             $salesUserId,
             $supportMarketing,
+            $companionSales,
             $oldSnapshot
         ) {
             [$productsByReview, $principalNames] = $this->validateAndLoadReviews($validated['principal_reviews']);
@@ -291,6 +297,7 @@ class VisitController extends Controller
                 'pic_position_snapshot' => $pic?->position,
                 'primary_sales_user_id' => $salesUserId,
                 'support_marketing' => $supportMarketing,
+                'companion_sales' => $companionSales,
                 'visit_type' => $validated['visit_type'],
                 'visit_purpose' => $validated['visit_purpose'] ?? 'Product Introduction / Presentation',
                 'agenda' => $validated['agenda'] ?? null,

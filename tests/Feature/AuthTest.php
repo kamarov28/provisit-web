@@ -126,7 +126,7 @@ class AuthTest extends TestCase
 
         $this->actingAs($salesB)
             ->patch("/visits/{$visitA->id}/status", ['status' => 'Confirmed'])
-            ->assertStatus(403);
+            ->assertRedirect(route('visits.index'));
 
         $this->actingAs($this->marketingUser)
             ->patch("/visits/{$visitA->id}/status", ['status' => 'Confirmed'])

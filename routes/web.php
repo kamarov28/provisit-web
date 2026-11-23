@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MasterDataController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\VisitController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,6 +13,9 @@ Route::middleware('guest')->group(function () {
         ->middleware('throttle:10,1')
         ->name('login.attempt');
 });
+
+Route::post('/profile', [ProfileController::class, 'update'])->middleware(['auth', 'throttle:20,1'])->name('profile.update');
+Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->middleware(['auth', 'throttle:10,1'])->name('profile.password.update');
 
 Route::post('/logout', [AuthController::class, 'logout'])
     ->middleware('auth')

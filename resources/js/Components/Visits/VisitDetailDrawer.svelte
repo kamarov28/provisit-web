@@ -61,6 +61,16 @@
         return String(plan.due_date).substring(0, 10) < todayStr;
     }
 
+    function getCreatorLabel(v) {
+        if (!v) return '';
+        const createLog = Array.isArray(v.audit_logs)
+            ? v.audit_logs.find((l) => l.action === 'CREATE' && l.user)
+            : null;
+        const actor = v.creator || createLog?.user || null;
+        if (!actor) return '';
+        return actor.initial ? `${actor.name} (${actor.initial})` : actor.name;
+    }
+
     function formatAuditLabel(log) {
         const actor = log.user?.initial || log.user?.name || 'System';
         if (log.action === 'CREATE') {
@@ -115,7 +125,11 @@
                 </h2>
                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-2">
                     <p class="text-xs text-slate-400">
-                        Dibuat pada {new Date(visit.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                        {#if getCreatorLabel(visit)}
+                            Dibuat oleh <span class="font-medium text-slate-600">{getCreatorLabel(visit)}</span> • {new Date(visit.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                        {:else}
+                            Dibuat pada {new Date(visit.created_at).toLocaleDateString('id-ID', { dateStyle: 'long' })}
+                        {/if}
                     </p>
 
                     <div class="flex items-center gap-1.5">

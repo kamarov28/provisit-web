@@ -7,37 +7,37 @@ use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
 {
-    /**
-     * The root template that's loaded on the first page visit.
-     *
-     * @see https://inertiajs.com/server-side-setup#root-template
-     *
-     * @var string
-     */
     protected $rootView = 'app';
 
-    /**
-     * Determines the current asset version.
-     *
-     * @see https://inertiajs.com/asset-versioning
-     */
     public function version(Request $request): ?string
     {
         return parent::version($request);
     }
 
-    /**
-     * Define the props that are shared by default.
-     *
-     * @see https://inertiajs.com/shared-data
-     *
-     * @return array<string, mixed>
-     */
     public function share(Request $request): array
     {
+        $user = $request->user();
+
         return [
             ...parent::share($request),
-            //
+            'auth' => [
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'initial' => $user->initial,
+                    'role' => $user->role,
+                    'team' => $user->team,
+                    'position' => $user->position,
+                    'phone' => $user->phone,
+                    'notes' => $user->notes,
+                    'avatar_url' => $user->avatar_url,
+                    'can_view_all_visits' => (bool) $user->can_view_all_visits,
+                    'can_edit_all_visits' => (bool) $user->can_edit_all_visits,
+                    'can_archive_visit' => (bool) $user->can_archive_visit,
+                    'can_delete_visit' => (bool) $user->can_delete_visit,
+                ] : null,
+            ],
         ];
     }
 }

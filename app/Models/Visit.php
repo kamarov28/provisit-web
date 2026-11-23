@@ -14,6 +14,7 @@ class Visit extends Model
     protected $casts = [
         'visit_date' => 'date:Y-m-d',
         'support_marketing' => 'array',
+        'companion_sales' => 'array',
         'report_completed_at' => 'datetime',
         'is_archived' => 'boolean',
     ];
@@ -31,6 +32,11 @@ class Visit extends Model
     public function primarySalesUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'primary_sales_user_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     public function principalReviews(): HasMany

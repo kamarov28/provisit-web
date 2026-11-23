@@ -43,6 +43,7 @@
     let formCustomerPicId = $state('');
     let formSalesUserId = $state('');
     let formSupportMarketing = $state([]);
+    let formCompanionSales = $state([]);
     let formAgenda = $state('');
     let formPrevisitNotes = $state('');
     let formStatus = $state('Planned');
@@ -109,6 +110,7 @@
         formCustomerPicId = '';
         formSalesUserId = '';
         formSupportMarketing = [];
+        formCompanionSales = [];
         formAgenda = '';
         formPrevisitNotes = '';
         formStatus = 'Planned';
@@ -142,6 +144,9 @@
         formSalesUserId = visit.primary_sales_user_id ? String(visit.primary_sales_user_id) : '';
         formSupportMarketing = Array.isArray(visit.support_marketing)
             ? visit.support_marketing.map(item => String(item).trim().toUpperCase()).filter(item => item && item !== 'NONE')
+            : [];
+        formCompanionSales = Array.isArray(visit.companion_sales)
+            ? visit.companion_sales.map(item => String(item).trim().toUpperCase()).filter(item => item && item !== 'NONE')
             : [];
 
         formAgenda = visit.agenda || '';
@@ -209,6 +214,9 @@
         formSupportMarketing = Array.isArray(visit.support_marketing)
             ? visit.support_marketing.map(item => String(item).trim().toUpperCase()).filter(item => item && item !== 'NONE')
             : [];
+        formCompanionSales = Array.isArray(visit.companion_sales)
+            ? visit.companion_sales.map(item => String(item).trim().toUpperCase()).filter(item => item && item !== 'NONE')
+            : [];
 
         formAgenda = visit.agenda || '';
         formPrevisitNotes = visit.previsit_notes || '';
@@ -250,10 +258,24 @@
         editingVisit = null;
     }
 
+    function toggleCompanionSales(initial) {
+        const code = String(initial || '').trim().toUpperCase();
+        if (!code || code === 'NONE') {
+            formCompanionSales = [];
+            return;
+        }
+        if (formCompanionSales.includes(code)) {
+            formCompanionSales = formCompanionSales.filter(item => item !== code);
+        } else {
+            formCompanionSales = [...formCompanionSales, code];
+        }
+    }
+
     function toggleSupportMarketing(initial) {
         const code = String(initial || '').trim().toUpperCase();
         if (!code || code === 'NONE') {
             formSupportMarketing = [];
+        formCompanionSales = [];
             return;
         }
 
@@ -537,6 +559,7 @@
             customer_id: formCustomerId,
             customer_pic_id: formCustomerPicId || null,
             support_marketing: formSupportMarketing,
+            companion_sales: formCompanionSales,
             agenda: formAgenda,
             previsit_notes: formPrevisitNotes,
             status: formStatus,
@@ -777,7 +800,7 @@
                                         bind:value={formCustomerPicId}
                                         class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
                                     >
-                                        <option value="">â€” Bebas / Belum Ditentukan â€”</option>
+                                        <option value="">— Bebas / Belum Ditentukan —</option>
                                         {#each availablePics as pic}
                                             <option value={pic.id}>{pic.name} {pic.position ? `(${pic.position})` : ''}</option>
                                         {/each}
@@ -794,6 +817,37 @@
                                         class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-100 text-slate-600 cursor-not-allowed"
                                     />
                                 </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <span class="block font-semibold text-slate-700">Rekan Kunjungan / Co-Sales <span class="font-normal text-slate-400">(Opsional, jika lebih dari 1 orang)</span></span>
+                                {#if formCompanionSales.length > 0}
+                                    <button
+                                        type="button"
+                                        onclick={() => toggleCompanionSales('NONE')}
+                                        class="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                                    >
+                                        Reset
+                                    </button>
+                                {/if}
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-lg border border-slate-200 bg-slate-50/60 max-h-40 overflow-y-auto">
+                                {#each salesUsers.filter((u) => u.initial && String(u.id) !== String(formSalesUserId)) as u (u.id)}
+                                    {@const code = String(u.initial).trim().toUpperCase()}
+                                    <label class="inline-flex items-center gap-2 px-2 py-1 rounded-md hover:bg-white cursor-pointer select-none transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={formCompanionSales.includes(code)}
+                                            onchange={() => toggleCompanionSales(code)}
+                                            class="rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                                        />
+                                        <span class="text-xs text-slate-700 truncate">
+                                            <strong class="font-semibold text-slate-900">{code}</strong> — {u.name}
+                                        </span>
+                                    </label>
+                                {/each}
                             </div>
                         </div>
 
@@ -1130,9 +1184,9 @@
                                                 bind:value={plan.owner_user_id}
                                                 class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-slate-400 bg-white"
                                             >
-                                                <option value="">â€” Pilih Owner â€”</option>
+                                                <option value="">— Pilih Owner —</option>
                                                 {#each salesUsers as u}
-                                                    <option value={String(u.id)}>{u.initial ? `${u.initial} â€” ${u.name}` : u.name}</option>
+                                                    <option value={String(u.id)}>{u.initial ? `${u.initial} — ${u.name}` : u.name}</option>
                                                 {/each}
                                             </select>
                                         </div>
@@ -1192,7 +1246,7 @@
                             onclick={nextStep}
                             class="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition-colors cursor-pointer"
                         >
-                            <span>Lanjut<span class="hidden sm:inline"> ke Langkah {currentStep + 1}</span></span>
+                            <span>Lanjut<span class="hidden sm:inline">{' '}ke Langkah {currentStep + 1}</span></span>
                             <ArrowRight class="w-3.5 h-3.5" />
                         </button>
                     {:else}

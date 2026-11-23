@@ -12,15 +12,19 @@
         X,
         RotateCcw,
         Database,
-        LogOut
+        LogOut,
+        KeyRound,
+        ChevronDown,
+        User as UserIcon
     } from '@lucide/svelte';
-    import { router } from '@inertiajs/svelte';
+    import { router, page } from '@inertiajs/svelte';
     import VisitCalendarView from '../../Components/Visits/VisitCalendarView.svelte';
     import VisitBoardView from '../../Components/Visits/VisitBoardView.svelte';
     import VisitTableView from '../../Components/Visits/VisitTableView.svelte';
     import VisitAnalyticsView from '../../Components/Visits/VisitAnalyticsView.svelte';
     import VisitDetailDrawer from '../../Components/Visits/VisitDetailDrawer.svelte';
     import VisitWizardModal from '../../Components/Visits/VisitWizardModal.svelte';
+    import ProfileModal from '../../Components/Auth/ProfileModal.svelte';
     import MasterDataModal from '../../Components/Visits/MasterDataModal.svelte';
 
     let {
@@ -49,6 +53,9 @@
         router.post('/logout');
     }
     let masterModal = $state(null);
+    let profileModal = $state(null);
+    let currentUser = $derived(page.props?.auth?.user ?? authUser);
+    let isUserMenuOpen = $state(false);
 
 
     // Search & Quick Dropdowns
@@ -377,147 +384,194 @@
 </script>
 
 <div class="min-h-screen bg-[#FBFBFA] text-[#37352F] flex flex-col font-sans">
-    <!-- Top Navigation Bar -->
-    <header class="border-b border-slate-200/80 bg-white sticky top-0 z-30 px-4 sm:px-6 py-3 sm:py-3.5 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <!-- Brand & Mobile CTA -->
-        <div class="flex items-center justify-between gap-3">
+    <!-- Top Navigation Bar (2-Tier Clean Layout) -->
+    <header class="border-b border-slate-200/80 bg-white sticky top-0 z-30">
+        <!-- Row 1: Brand & Primary Actions + Account Dropdown -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
             <div class="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-sm shrink-0">
+                <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-xs tracking-wider shadow-xs shrink-0">
                     PV
                 </div>
                 <div class="min-w-0">
                     <div class="flex items-center gap-2">
                         <h1 class="text-base font-semibold tracking-tight text-slate-900">PROvisit</h1>
-                        <span class="text-[11px] sm:text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium border border-slate-200 truncate">
+                        <span class="hidden sm:inline-block text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium border border-slate-200 truncate">
                             Mitra Analitika
                         </span>
                     </div>
-                    <p class="text-[11px] text-slate-400 truncate hidden 2xl:block">Portal Pelaporan & Tracking Kunjungan Sales</p>
                 </div>
             </div>
 
-            <!-- Mobile Action Buttons -->
-            <div class="lg:hidden flex items-center gap-1.5 shrink-0">
-                <button
-                    type="button"
-                    onclick={() => masterModal?.open('customer')}
-                    title="Quick Master Data (Customer / PIC / Produk)"
-                    class="inline-flex items-center justify-center p-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg transition-colors cursor-pointer"
-                >
-                    <Database class="w-4 h-4" />
-                </button>
-                <button
-                    type="button"
-                    onclick={() => wizardModal?.openNew()}
-                    class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-medium shadow-xs transition-colors cursor-pointer"
-                >
-                    <Plus class="w-3.5 h-3.5" />
-                    <span>Catat Visit</span>
-                </button>
-                <button
-                    type="button"
-                    onclick={handleLogout}
-                    title="Keluar ({authUser?.email || 'Akun'})"
-                    class="inline-flex items-center justify-center p-2 border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
-                >
-                    <LogOut class="w-4 h-4" />
-                </button>
-            </div>
-        </div>
-
-        <!-- View Switcher, Dropdown Filters & Desktop CTA -->
-        <div class="flex flex-wrap lg:flex-nowrap items-center gap-2 shrink-0">
-            <!-- View Switcher -->
-            <div class="flex items-center bg-slate-100/90 p-1 rounded-lg border border-slate-200 overflow-x-auto max-w-full">
-                <button
-                    type="button"
-                    onclick={() => currentView = 'calendar'}
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'calendar' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
-                >
-                    <CalendarIcon class="w-3.5 h-3.5 shrink-0" />
-                    <span>Kalender</span>
-                </button>
-                <button
-                    type="button"
-                    onclick={() => currentView = 'board'}
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'board' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
-                >
-                    <LayoutGrid class="w-3.5 h-3.5 shrink-0" />
-                    <span>Board</span>
-                </button>
-                <button
-                    type="button"
-                    onclick={() => currentView = 'table'}
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
-                >
-                    <TableIcon class="w-3.5 h-3.5 shrink-0" />
-                    <span>Tabel</span>
-                </button>
-                <button
-                    type="button"
-                    onclick={() => currentView = 'analytics'}
-                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all {currentView === 'analytics' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
-                >
-                    <BarChart3 class="w-3.5 h-3.5 shrink-0" />
-                    <span>Analitik</span>
-                </button>
-            </div>
-
-            <!-- Status & Team Dropdowns -->
-            <div class="flex items-center gap-2 flex-1 sm:flex-initial">
-                <select
-                    bind:value={selectedStatus}
-                    aria-label="Filter Status"
-                    class="flex-1 sm:flex-initial text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
-                >
-                    <option value="ALL">Semua Status</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Planned">Planned</option>
-                    <option value="Confirmed">Confirmed</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                </select>
-
-                <select
-                    bind:value={selectedTeam}
-                    aria-label="Filter Tim"
-                    class="flex-1 sm:flex-initial text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
-                >
-                    <option value="ALL">Semua Tim</option>
-                    <option value="YES">Tim YES</option>
-                    <option value="MOU">Tim MOU</option>
-                    <option value="MANAGEMENT">Manajemen</option>
-                </select>
-            </div>
-
-            <!-- Desktop Master Data & New Visit Buttons -->
-            <div class="hidden lg:flex items-center gap-2">
+            <!-- Primary Actions & User Menu -->
+            <div class="flex items-center gap-2 shrink-0">
                 <button
                     type="button"
                     onclick={() => masterModal?.open('customer')}
                     title="Tambah Customer, PIC, atau Produk baru"
-                    class="flex items-center gap-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer"
+                    class="inline-flex items-center gap-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer"
                 >
                     <Database class="w-3.5 h-3.5 text-slate-500" />
-                    <span>Master Data</span>
+                    <span class="hidden sm:inline">Master Data</span>
                 </button>
 
                 <button
                     type="button"
                     onclick={() => wizardModal?.openNew()}
-                    class="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shadow-xs transition-colors cursor-pointer"
+                    class="inline-flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shadow-xs transition-colors cursor-pointer"
                 >
                     <Plus class="w-3.5 h-3.5" />
                     <span>Catat Visit</span>
                 </button>
-                <button
-                    type="button"
-                    onclick={handleLogout}
-                    title="Keluar ({authUser?.email || 'Akun'})"
-                    class="inline-flex items-center justify-center p-2 border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 text-slate-600 rounded-lg transition-colors cursor-pointer"
-                >
-                    <LogOut class="w-4 h-4" />
-                </button>
+
+                <!-- Account Dropdown -->
+                <div class="relative">
+                    <button
+                        type="button"
+                        onclick={() => (isUserMenuOpen = !isUserMenuOpen)}
+                        class="inline-flex items-center gap-2 pl-1.5 pr-2.5 py-1 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-xs font-medium text-slate-700 transition-colors cursor-pointer"
+                    >
+                        {#if currentUser?.avatar_url}
+                            <img src={currentUser.avatar_url} alt={currentUser.name} class="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                        {:else}
+                            <span class="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold">
+                                {currentUser?.initial || currentUser?.name?.slice(0, 2)?.toUpperCase() || 'PV'}
+                            </span>
+                        {/if}
+                        <span class="hidden sm:inline max-w-[120px] truncate">{currentUser?.name?.split(' ')[0] || 'Akun'}</span>
+                        <ChevronDown class="w-3.5 h-3.5 text-slate-400" />
+                    </button>
+
+                    {#if isUserMenuOpen}
+                        <button
+                            type="button"
+                            aria-label="Tutup menu akun"
+                            onclick={() => (isUserMenuOpen = false)}
+                            class="fixed inset-0 z-40 cursor-default"
+                        ></button>
+                        <div class="absolute right-0 mt-1.5 w-60 rounded-xl bg-white shadow-lg border border-slate-200 py-1.5 z-50">
+                            <div class="px-3.5 py-2.5 border-b border-slate-100 flex items-center gap-2.5">
+                                {#if currentUser?.avatar_url}
+                                    <img src={currentUser.avatar_url} alt={currentUser.name} class="w-9 h-9 rounded-full object-cover border border-slate-200 shrink-0" />
+                                {:else}
+                                    <div class="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                                        {currentUser?.initial || currentUser?.name?.slice(0, 2)?.toUpperCase() || 'PV'}
+                                    </div>
+                                {/if}
+                                <div class="min-w-0">
+                                    <p class="text-xs font-semibold text-slate-900 truncate">{currentUser?.name || 'Pengguna'}</p>
+                                    <p class="text-[11px] text-slate-500 truncate">{currentUser?.email || ''}</p>
+                                    {#if currentUser?.role}
+                                        <span class="inline-block mt-0.5 text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium capitalize">
+                                            {currentUser.role.replace('_', ' ')}
+                                        </span>
+                                    {/if}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onclick={() => {
+                                    isUserMenuOpen = false;
+                                    profileModal?.open('profile');
+                                }}
+                                class="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                            >
+                                <UserIcon class="w-3.5 h-3.5 text-slate-500" />
+                                <span>Profil & Foto Saya</span>
+                            </button>
+                            <button
+                                type="button"
+                                onclick={() => {
+                                    isUserMenuOpen = false;
+                                    profileModal?.open('security');
+                                }}
+                                class="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                            >
+                                <KeyRound class="w-3.5 h-3.5 text-slate-500" />
+                                <span>Ganti Kata Sandi</span>
+                            </button>
+                            <div class="my-1 border-t border-slate-100"></div>
+                            <button
+                                type="button"
+                                onclick={() => {
+                                    isUserMenuOpen = false;
+                                    handleLogout();
+                                }}
+                                class="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            >
+                                <LogOut class="w-3.5 h-3.5" />
+                                <span>Keluar</span>
+                            </button>
+                        </div>
+                    {/if}
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: View Switcher & Global Filters -->
+        <div class="border-t border-slate-100 bg-slate-50/60">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2">
+                <!-- View Switcher -->
+                <div class="flex items-center bg-slate-200/70 p-0.5 rounded-lg border border-slate-200/80 overflow-x-auto max-w-full">
+                    <button
+                        type="button"
+                        onclick={() => currentView = 'calendar'}
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all cursor-pointer {currentView === 'calendar' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    >
+                        <CalendarIcon class="w-3.5 h-3.5 shrink-0" />
+                        <span>Kalender</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => currentView = 'board'}
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all cursor-pointer {currentView === 'board' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    >
+                        <LayoutGrid class="w-3.5 h-3.5 shrink-0" />
+                        <span>Board</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => currentView = 'table'}
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all cursor-pointer {currentView === 'table' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    >
+                        <TableIcon class="w-3.5 h-3.5 shrink-0" />
+                        <span>Tabel</span>
+                    </button>
+                    <button
+                        type="button"
+                        onclick={() => currentView = 'analytics'}
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all cursor-pointer {currentView === 'analytics' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}"
+                    >
+                        <BarChart3 class="w-3.5 h-3.5 shrink-0" />
+                        <span>Analitik</span>
+                    </button>
+                </div>
+
+                <!-- Status & Team Dropdowns -->
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <select
+                        bind:value={selectedStatus}
+                        aria-label="Filter Status"
+                        class="flex-1 sm:flex-initial text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
+                    >
+                        <option value="ALL">Semua Status</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Planned">Planned</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+
+                    <select
+                        bind:value={selectedTeam}
+                        aria-label="Filter Tim"
+                        class="flex-1 sm:flex-initial text-xs font-medium bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-700 outline-none hover:border-slate-300 focus:border-slate-400 cursor-pointer"
+                    >
+                        <option value="ALL">Semua Tim</option>
+                        <option value="YES">Tim YES</option>
+                        <option value="MOU">Tim MOU</option>
+                        <option value="MANAGEMENT">Manajemen</option>
+                    </select>
+                </div>
             </div>
         </div>
     </header>
@@ -838,3 +892,5 @@
         {salesUsers}
     />
 </div>
+
+<ProfileModal bind:this={profileModal} authUser={currentUser} {visits} />

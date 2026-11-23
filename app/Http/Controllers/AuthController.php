@@ -6,7 +6,9 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -70,5 +72,25 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
 
         return redirect()->route('login');
+    }
+
+    public function updatePassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'password' => ['required', 'confirmed', Password::min(8)],
+        ], [
+            'current_password.current_password' => 'Kata sandi saat ini tidak sesuai.',
+            'password.confirmed' => 'Konfirmasi kata sandi baru tidak cocok.',
+            'password.min' => 'Kata sandi baru minimal 8 karakter.',
+        ]);
+
+        $request->user()->update([
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        $request->session()->regenerate();
+
+        return back()->with('success', 'Kata sandi Anda berhasil diperbarui.');
     }
 }
