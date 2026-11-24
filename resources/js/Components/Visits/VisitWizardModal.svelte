@@ -357,6 +357,9 @@
         if (review.productSearchTimer) {
             clearTimeout(review.productSearchTimer);
         }
+        if (review.productAbortController) {
+            review.productAbortController.abort();
+        }
 
         const query = String(review.productSearch || '').trim();
 
@@ -376,6 +379,9 @@
         review.productLoading = true;
 
         review.productSearchTimer = setTimeout(async () => {
+            const controller = new AbortController();
+            review.productAbortController = controller;
+
             try {
                 const params = new URLSearchParams({
                     principal_id: principalId,
@@ -383,8 +389,13 @@
                 });
 
                 const response = await fetch(`/products/search?${params}`, {
-                    headers: { Accept: 'application/json' }
+                    headers: { Accept: 'application/json' },
+                    signal: controller.signal
                 });
+
+                if (response.status === 429) {
+                    throw new Error('Terlalu banyak pencarian. Tunggu sebentar lalu coba lagi.');
+                }
 
                 if (!response.ok) {
                     throw new Error('Pencarian produk gagal.');
@@ -411,6 +422,8 @@
                     )
                 );
             } catch (error) {
+                if (error.name === 'AbortError') return;
+
                 if (review.productRequestId === requestId) {
                     review.productError = error.message || 'Gagal mencari produk.';
                 }
@@ -419,7 +432,7 @@
                     review.productLoading = false;
                 }
             }
-        }, 300);
+        }, 350);
     }
 
     function addReviewProduct(review, product) {
