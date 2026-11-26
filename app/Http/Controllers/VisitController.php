@@ -47,17 +47,7 @@ class VisitController extends Controller
             ->orderBy('visit_date', 'desc')
             ->orderBy('start_time', 'asc');
 
-        if (! $canViewAll) {
-            $userInitial = strtoupper(trim((string) $user->initial));
-            $query->where(function ($q) use ($user, $userInitial) {
-                $q->where('primary_sales_user_id', $user->id)
-                    ->orWhere('created_by', $user->id);
-
-                if ($userInitial !== '') {
-                    $q->orWhereJsonContains('support_marketing', $userInitial);
-                }
-            });
-        }
+        $this->applyVisibilityScope($query, $user, $canViewAll);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -72,18 +62,7 @@ class VisitController extends Controller
         $visits = $query->get();
 
         $statsQuery = Visit::where('is_archived', false);
-        if (! $canViewAll) {
-            $userInitial = strtoupper(trim((string) $user->initial));
-            $statsQuery->where(function ($q) use ($user, $userInitial) {
-                $q->where('primary_sales_user_id', $user->id)
-                    ->orWhere('created_by', $user->id);
-
-                if ($userInitial !== '') {
-                    $q->orWhereJsonContains('support_marketing', $userInitial)
-                        ->orWhereJsonContains('companion_sales', $userInitial);
-                }
-            });
-        }
+        $this->applyVisibilityScope($statsQuery, $user, $canViewAll);
 
         $statusCounts = $statsQuery
             ->selectRaw('status, COUNT(*) as aggregate')
@@ -633,5 +612,23 @@ class VisitController extends Controller
                 ]);
             }
         }
+    }
+
+    private function applyVisibilityScope($query, User $user, bool $canViewAll): void
+    {
+        if ($canViewAll) {
+            return;
+        }
+
+        $userInitial = strtoupper(trim((string) $user->initial));
+        $query->where(function ($q) use ($user, $userInitial) {
+            $q->where('primary_sales_user_id', $user->id)
+                ->orWhere('created_by', $user->id);
+
+            if ($userInitial !== '') {
+                $q->orWhereJsonContains('support_marketing', $userInitial)
+                    ->orWhereJsonContains('companion_sales', $userInitial);
+            }
+        });
     }
 }

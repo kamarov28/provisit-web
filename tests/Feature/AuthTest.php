@@ -134,4 +134,75 @@ class AuthTest extends TestCase
 
         $this->assertEquals('Confirmed', $visitA->fresh()->status);
     }
+
+    public function test_companion_sales_can_view_assigned_visit_and_scoped_stats(): void
+    {
+        $salesA = User::create([
+            'name' => 'Sales Utama',
+            'email' => 'utama@prolabios.com',
+            'password' => Hash::make('Prolabios#2026!'),
+            'role' => 'sales',
+            'initial' => 'SU1',
+            'is_active' => true,
+            'can_view_all_visits' => false,
+        ]);
+
+        $coSales = User::create([
+            'name' => 'Sales Pendamping',
+            'email' => 'pendamping@prolabios.com',
+            'password' => Hash::make('Prolabios#2026!'),
+            'role' => 'sales',
+            'initial' => 'SP1',
+            'is_active' => true,
+            'can_view_all_visits' => false,
+        ]);
+
+        $unrelatedSales = User::create([
+            'name' => 'Sales Lain',
+            'email' => 'lain@prolabios.com',
+            'password' => Hash::make('Prolabios#2026!'),
+            'role' => 'sales',
+            'initial' => 'SL1',
+            'is_active' => true,
+            'can_view_all_visits' => false,
+        ]);
+
+        $customer = Customer::create([
+            'name' => 'PT Kalbe Farma',
+            'sales_initial' => 'SU1',
+            'is_active' => true,
+        ]);
+
+        Visit::create([
+            'visit_code' => 'VST-2026-000101',
+            'title' => 'Visit Bersama Co-Sales',
+            'visit_date' => '2026-11-26',
+            'start_time' => '09:00',
+            'customer_id' => $customer->id,
+            'customer_name_snapshot' => $customer->name,
+            'primary_sales_user_id' => $salesA->id,
+            'companion_sales' => ['SP1'],
+            'visit_type' => 'On-site',
+            'status' => 'Planned',
+        ]);
+
+        $this->actingAs($coSales)
+            ->get('/')
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->component('Visits/Index')
+                ->has('visits', 1)
+                ->where('stats.total', 1)
+                ->where('stats.planned', 1)
+            );
+
+        $this->actingAs($unrelatedSales)
+            ->get('/')
+            ->assertStatus(200)
+            ->assertInertia(fn ($page) => $page
+                ->component('Visits/Index')
+                ->has('visits', 0)
+                ->where('stats.total', 0)
+            );
+    }
 }
