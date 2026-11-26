@@ -155,7 +155,7 @@ class VisitController extends Controller
             'q' => 'required|string|min:2|max:100',
         ]);
 
-        $term = trim($validated['q']);
+        $term = addcslashes(trim($validated['q']), '%_\\');
 
         $products = Product::query()
             ->where('principal_id', $validated['principal_id'])
