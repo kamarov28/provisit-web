@@ -101,5 +101,9 @@ class MasterDataTest extends TestCase
         $searchRes->assertStatus(200)
             ->assertJsonCount(1)
             ->assertJsonFragment(['catalogue' => '105463']);
+
+        $wildcardRes = $this->getJson("/products/search?principal_id={$activePrincipal->id}&q=" . urlencode('%%'));
+        $wildcardRes->assertStatus(200)
+            ->assertJsonCount(0);
     }
 }

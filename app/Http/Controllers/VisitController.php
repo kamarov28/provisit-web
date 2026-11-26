@@ -71,11 +71,30 @@ class VisitController extends Controller
 
         $visits = $query->get();
 
+        $statsQuery = Visit::where('is_archived', false);
+        if (! $canViewAll) {
+            $userInitial = strtoupper(trim((string) $user->initial));
+            $statsQuery->where(function ($q) use ($user, $userInitial) {
+                $q->where('primary_sales_user_id', $user->id)
+                    ->orWhere('created_by', $user->id);
+
+                if ($userInitial !== '') {
+                    $q->orWhereJsonContains('support_marketing', $userInitial)
+                        ->orWhereJsonContains('companion_sales', $userInitial);
+                }
+            });
+        }
+
+        $statusCounts = $statsQuery
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
         $stats = [
-            'total' => Visit::where('is_archived', false)->count(),
-            'planned' => Visit::where('is_archived', false)->where('status', 'Planned')->count(),
-            'confirmed' => Visit::where('is_archived', false)->where('status', 'Confirmed')->count(),
-            'completed' => Visit::where('is_archived', false)->where('status', 'Completed')->count(),
+            'total' => (int) $statusCounts->sum(),
+            'planned' => (int) ($statusCounts['Planned'] ?? 0),
+            'confirmed' => (int) ($statusCounts['Confirmed'] ?? 0),
+            'completed' => (int) ($statusCounts['Completed'] ?? 0),
         ];
 
         $principals = Principal::where('is_active', true)->select('id', 'name')->orderBy('name')->get();
